@@ -1,0 +1,66 @@
+{
+  "name": "perf-skill",
+  "version": "0.1.0",
+  "description": "AI Skill for pprof profile analysis - convert .pb.gz to Markdown and generate structured performance recommendations",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "perf-skill": "dist/cli/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/server/http.js",
+    "cli": "node --import tsx src/cli/main.ts",
+    "test": "node --test --import tsx 'test/**/*.test.ts'",
+    "lint": "eslint src --ext .ts",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "pprof",
+    "profiling",
+    "performance",
+    "ai",
+    "llm",
+    "markdown",
+    "cpu",
+    "memory",
+    "heap",
+    "analysis"
+  ],
+  "author": "unadlib",
+  "license": "MIT",
+  "dependencies": {
+    "@fastify/multipart": "^9.4.0",
+    "commander": "^14.0.3",
+    "fastify": "^5.7.3",
+    "openai": "^6.17.0",
+    "pprof-format": "^2.2.1",
+    "pprof-to-md": "^0.2.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
+    "eslint": "^9.39.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "files": [
+    "dist",
+    "SKILL.md",
+    "README.md"
+  ]
+}

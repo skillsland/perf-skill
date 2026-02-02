@@ -1,0 +1,260 @@
+/**
+ * HTTP API server for perf-skill
+ */
+
+import Fastify, { type FastifyInstance } from "fastify";
+import multipart from "@fastify/multipart";
+import { analyze, diff } from "../index.js";
+import type { AnalyzeOptions, DiffOptions, AnalyzeResult, DiffResult, ApiResponse } from "../types.js";
+import { logger } from "../utils/logger.js";
+import { checkSizeLimit, DEFAULT_LIMITS } from "../utils/limits.js";
+
+export interface ServerOptions {
+  port?: number;
+  host?: string;
+  maxFileSize?: number;
+}
+
+/**
+ * Create and configure Fastify server
+ */
+export async function createServer(options: ServerOptions = {}): Promise<FastifyInstance> {
+  const server = Fastify({
+    logger: process.env.LOG_FORMAT === "json",
+  });
+
+  // Register multipart plugin for file uploads
+  await server.register(multipart, {
+    limits: {
+      fileSize: options.maxFileSize ?? DEFAULT_LIMITS.maxProfileBytes,
+    },
+  });
+
+  // Health check
+  server.get("/health", async () => {
+    return { status: "ok", timestamp: new Date().toISOString() };
+  });
+
+  // API info
+  server.get("/v1", async () => {
+    return {
+      name: "perf-skill",
+      version: "1.0.0",
+      endpoints: {
+        analyze: "POST /v1/pprof/analyze",
+        diff: "POST /v1/pprof/diff",
+        convert: "POST /v1/pprof/convert",
+      },
+    };
+  });
+
+  // Analyze endpoint
+  server.post<{
+    Body: { options?: AnalyzeOptions };
+  }>("/v1/pprof/analyze", async (request, reply) => {
+    const startTime = performance.now();
+
+    try {
+      // Handle multipart file upload
+      const data = await request.file();
+      if (!data) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: "MISSING_FILE",
+            message: "Profile file is required",
+          },
+        } satisfies ApiResponse<never>);
+      }
+
+      const profileBuffer = await data.toBuffer();
+      checkSizeLimit(profileBuffer, DEFAULT_LIMITS.maxProfileBytes, "Profile");
+
+      // Parse options from form field or use defaults
+      const options: AnalyzeOptions = request.body?.options || {};
+      
+      // Default to not including source in server mode for security
+      if (options.includeSource === undefined) {
+        options.includeSource = false;
+      }
+
+      logger.info("Analyze request received", {
+        filename: data.filename,
+        size: profileBuffer.length,
+        mode: options.mode,
+      });
+
+      const result = await analyze(profileBuffer, options);
+
+      const response: ApiResponse<AnalyzeResult> = {
+        success: true,
+        data: result,
+      };
+
+      logger.info("Analyze request completed", {
+        durationMs: Math.round(performance.now() - startTime),
+        hotspotsCount: result.hotspots.length,
+      });
+
+      return response;
+    } catch (error) {
+      logger.error("Analyze request failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: "ANALYSIS_ERROR",
+          message: error instanceof Error ? error.message : "Analysis failed",
+        },
+      } satisfies ApiResponse<never>);
+    }
+  });
+
+  // Convert-only endpoint (no LLM)
+  server.post<{
+    Body: { options?: AnalyzeOptions };
+  }>("/v1/pprof/convert", async (request, reply) => {
+    try {
+      const data = await request.file();
+      if (!data) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: "MISSING_FILE",
+            message: "Profile file is required",
+          },
+        } satisfies ApiResponse<never>);
+      }
+
+      const profileBuffer = await data.toBuffer();
+      checkSizeLimit(profileBuffer, DEFAULT_LIMITS.maxProfileBytes, "Profile");
+
+      const options: AnalyzeOptions = {
+        ...request.body?.options,
+        mode: "convert-only",
+        includeSource: false,
+      };
+
+      const result = await analyze(profileBuffer, options);
+
+      return {
+        success: true,
+        data: result,
+      } satisfies ApiResponse<AnalyzeResult>;
+    } catch (error) {
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: "CONVERT_ERROR",
+          message: error instanceof Error ? error.message : "Conversion failed",
+        },
+      } satisfies ApiResponse<never>);
+    }
+  });
+
+  // Diff endpoint
+  server.post<{
+    Body: { options?: DiffOptions };
+  }>("/v1/pprof/diff", async (request, reply) => {
+    const startTime = performance.now();
+
+    try {
+      // Expect two files: base and current
+      const files = await request.saveRequestFiles();
+      
+      if (files.length < 2) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: "MISSING_FILES",
+            message: "Two profile files required (base and current)",
+          },
+        } satisfies ApiResponse<never>);
+      }
+
+      const baseFile = files.find(f => f.fieldname === "base") || files[0];
+      const currentFile = files.find(f => f.fieldname === "current") || files[1];
+
+      const { readFile } = await import("node:fs/promises");
+      const baseBuffer = await readFile(baseFile.filepath);
+      const currentBuffer = await readFile(currentFile.filepath);
+
+      checkSizeLimit(baseBuffer, DEFAULT_LIMITS.maxProfileBytes, "Base profile");
+      checkSizeLimit(currentBuffer, DEFAULT_LIMITS.maxProfileBytes, "Current profile");
+
+      const options: DiffOptions = request.body?.options || {};
+
+      logger.info("Diff request received", {
+        baseSize: baseBuffer.length,
+        currentSize: currentBuffer.length,
+      });
+
+      const result = await diff(baseBuffer, currentBuffer, options);
+
+      logger.info("Diff request completed", {
+        durationMs: Math.round(performance.now() - startTime),
+        regressions: result.regressions.length,
+        improvements: result.improvements.length,
+      });
+
+      return {
+        success: true,
+        data: result,
+      } satisfies ApiResponse<DiffResult>;
+    } catch (error) {
+      logger.error("Diff request failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return reply.status(500).send({
+        success: false,
+        error: {
+          code: "DIFF_ERROR",
+          message: error instanceof Error ? error.message : "Diff analysis failed",
+        },
+      } satisfies ApiResponse<never>);
+    }
+  });
+
+  // Error handler
+  server.setErrorHandler((error, request, reply) => {
+    logger.error("Server error", {
+      error: error.message,
+      url: request.url,
+    });
+
+    reply.status(500).send({
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Internal server error",
+      },
+    } satisfies ApiResponse<never>);
+  });
+
+  return server;
+}
+
+/**
+ * Start the HTTP server
+ */
+export async function startServer(options: ServerOptions = {}): Promise<FastifyInstance> {
+  const server = await createServer(options);
+
+  const port = options.port ?? 3000;
+  const host = options.host ?? "0.0.0.0";
+
+  try {
+    await server.listen({ port, host });
+    console.log(`perf-skill server listening on http://${host}:${port}`);
+    console.log(`API docs: http://${host}:${port}/v1`);
+    return server;
+  } catch (error) {
+    logger.error("Failed to start server", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
