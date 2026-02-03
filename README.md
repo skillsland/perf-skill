@@ -74,6 +74,9 @@ console.log(diffResult.improvements);
 # Start server
 perf-skill server
 
+# Start server with security overrides
+perf-skill server --no-cors --no-helmet --rate-limit --rate-limit-max 120 --rate-limit-window-ms 60000
+
 # Analyze profile
 curl -X POST http://localhost:3000/v1/pprof/analyze \
   -F "file=@cpu.pb.gz"
@@ -214,8 +217,25 @@ writeFileSync("heap.pb.gz", gzipSync(heapProfile.encode()));
 | `LLM_PROVIDER`      | Default LLM provider                            |
 | `LLM_MODEL`         | Default LLM model                               |
 | `LLM_BASE_URL`      | Custom LLM API endpoint                         |
+| `LLM_TIMEOUT_MS`    | LLM request timeout in ms                       |
+| `LLM_MAX_RETRIES`   | LLM retry count for transient failures          |
+| `LLM_RETRY_DELAY_MS`| Base retry delay in ms                          |
 | `LOG_LEVEL`         | Logging level: `debug`, `info`, `warn`, `error` |
 | `LOG_FORMAT`        | Log format: `text`, `json`                      |
+| `CORS_ENABLED`      | Enable CORS (`true`/`false`)                    |
+| `CORS_ORIGIN`       | CORS origin(s), comma-separated or `*`          |
+| `HELMET_ENABLED`    | Enable Helmet (`true`/`false`)                  |
+| `RATE_LIMIT_ENABLED`| Enable rate limiting (`true`/`false`)           |
+| `RATE_LIMIT_MAX`    | Rate limit max requests per window              |
+| `RATE_LIMIT_WINDOW_MS` | Rate limit window size in ms                 |
+
+Example:
+
+```bash
+export LLM_TIMEOUT_MS=30000
+export LLM_MAX_RETRIES=2
+export LLM_RETRY_DELAY_MS=500
+```
 
 ### Resource Limits
 
@@ -252,6 +272,34 @@ In HTTP server mode:
 - Source code inclusion is disabled by default
 - File size limits are enforced
 - Only `.pb.gz` files are accepted
+
+Security defaults (configurable via env or server options):
+
+- CORS enabled (set `CORS_ENABLED=false` to disable)
+- Helmet enabled (set `HELMET_ENABLED=false` to disable)
+- Rate limiting enabled (default 60 req/min, set `RATE_LIMIT_ENABLED=false` or `RATE_LIMIT_MAX=0` to disable)
+
+Server CLI flags (override env defaults):
+
+- `--cors/--no-cors`
+- `--cors-origin <origin>` (comma-separated or `*`)
+- `--helmet/--no-helmet`
+- `--rate-limit/--no-rate-limit`
+- `--rate-limit-max <n>`
+- `--rate-limit-window-ms <ms>`
+
+ServerOptions (programmatic):
+
+```typescript
+const server = await createServer({
+  enableCors: true,
+  corsOrigin: "https://example.com",
+  enableHelmet: true,
+  enableRateLimit: true,
+  rateLimitMax: 60,
+  rateLimitWindowMs: 60_000,
+});
+```
 
 ## Requirements
 
@@ -307,3 +355,11 @@ Create an LLM client for custom integrations.
 ## License
 
 MIT
+
+### Updating Prompt Fixtures
+
+If you change prompt templates and need to refresh fixtures:
+
+```bash
+npm run update-prompts
+```

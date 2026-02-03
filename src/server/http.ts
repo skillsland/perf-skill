@@ -4,16 +4,33 @@
 
 import Fastify, { type FastifyInstance } from "fastify";
 import multipart from "@fastify/multipart";
+import cors from "@fastify/cors";
+import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import { analyze, diff } from "../index.js";
 import type { AnalyzeOptions, DiffOptions, AnalyzeResult, DiffResult, ApiResponse } from "../types.js";
 import { logger } from "../utils/logger.js";
 import { checkSizeLimit, DEFAULT_LIMITS } from "../utils/limits.js";
-import { cleanupUploadedFiles, parseOptionsField } from "./utils.js";
+import {
+  cleanupUploadedFiles,
+  parseOptionsField,
+  parseBoolean,
+  parseNumber,
+  resolveMultipartFile,
+} from "./utils.js";
 
 export interface ServerOptions {
   port?: number;
   host?: string;
   maxFileSize?: number;
+  enableCors?: boolean;
+  corsOrigin?: string | string[] | boolean;
+  enableHelmet?: boolean;
+  enableRateLimit?: boolean;
+  rateLimitMax?: number;
+  rateLimitWindowMs?: number;
+  analyzeFn?: typeof analyze;
+  diffFn?: typeof diff;
 }
 
 /**
@@ -24,9 +41,38 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
     logger: process.env.LOG_FORMAT === "json",
   });
 
+  const analyzeFn = options.analyzeFn ?? analyze;
+  const diffFn = options.diffFn ?? diff;
+
+  const corsEnabled = options.enableCors ?? parseBoolean(process.env.CORS_ENABLED, true);
+  const helmetEnabled = options.enableHelmet ?? parseBoolean(process.env.HELMET_ENABLED, true);
+  const rateLimitEnabled = options.enableRateLimit ?? parseBoolean(process.env.RATE_LIMIT_ENABLED, true);
+
+  if (corsEnabled) {
+    const originValue = options.corsOrigin ?? process.env.CORS_ORIGIN ?? true;
+    const origin = typeof originValue === "string"
+      ? originValue === "*"
+        ? true
+        : originValue.split(",").map((item) => item.trim()).filter(Boolean)
+      : originValue;
+    await server.register(cors, { origin });
+  }
+
+  if (helmetEnabled) {
+    await server.register(helmet);
+  }
+
+  if (rateLimitEnabled) {
+    const max = options.rateLimitMax ?? parseNumber(process.env.RATE_LIMIT_MAX, 60);
+    const timeWindow = options.rateLimitWindowMs ?? parseNumber(process.env.RATE_LIMIT_WINDOW_MS, 60_000);
+    if (max > 0) {
+      await server.register(rateLimit, { max, timeWindow });
+    }
+  }
+
   // Register multipart plugin for file uploads
   await server.register(multipart, {
-    attachFieldsToBody: "keyValues",
+    attachFieldsToBody: true,
     limits: {
       fileSize: options.maxFileSize ?? DEFAULT_LIMITS.maxProfileBytes,
     },
@@ -58,7 +104,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
 
     try {
       // Handle multipart file upload
-      const data = await request.file();
+      const data = await resolveMultipartFile(request as { file: () => Promise<unknown>; body?: Record<string, unknown> }, "file");
       if (!data) {
         return reply.status(400).send({
           success: false,
@@ -69,7 +115,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
         } satisfies ApiResponse<never>);
       }
 
-      const profileBuffer = await data.toBuffer();
+      const profileBuffer = await (data as { toBuffer: () => Promise<Buffer> }).toBuffer();
       checkSizeLimit(profileBuffer, DEFAULT_LIMITS.maxProfileBytes, "Profile");
 
       let options: AnalyzeOptions;
@@ -96,7 +142,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
         mode: options.mode,
       });
 
-      const result = await analyze(profileBuffer, options);
+      const result = await analyzeFn(profileBuffer, options);
 
       const response: ApiResponse<AnalyzeResult> = {
         success: true,
@@ -129,7 +175,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
     Body: { options?: string | AnalyzeOptions };
   }>("/v1/pprof/convert", async (request, reply) => {
     try {
-      const data = await request.file();
+      const data = await resolveMultipartFile(request as { file: () => Promise<unknown>; body?: Record<string, unknown> }, "file");
       if (!data) {
         return reply.status(400).send({
           success: false,
@@ -140,7 +186,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
         } satisfies ApiResponse<never>);
       }
 
-      const profileBuffer = await data.toBuffer();
+      const profileBuffer = await (data as { toBuffer: () => Promise<Buffer> }).toBuffer();
       checkSizeLimit(profileBuffer, DEFAULT_LIMITS.maxProfileBytes, "Profile");
 
       let parsedOptions: AnalyzeOptions;
@@ -162,7 +208,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
         includeSource: false,
       };
 
-      const result = await analyze(profileBuffer, options);
+      const result = await analyzeFn(profileBuffer, options);
 
       return {
         success: true,
@@ -228,7 +274,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
         currentSize: currentBuffer.length,
       });
 
-      const result = await diff(baseBuffer, currentBuffer, options);
+      const result = await diffFn(baseBuffer, currentBuffer, options);
 
       logger.info("Diff request completed", {
         durationMs: Math.round(performance.now() - startTime),

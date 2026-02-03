@@ -30,6 +30,9 @@ export interface LLMConfig {
   baseUrl?: string;
   maxTokens?: number;
   temperature?: number;
+  maxRetries?: number;
+  retryDelayMs?: number;
+  timeoutMs?: number;
 }
 
 // Analysis context

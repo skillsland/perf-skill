@@ -4,6 +4,7 @@
 
 import { rm } from "node:fs/promises";
 import { logger } from "../utils/logger.js";
+import type { MultipartFile } from "@fastify/multipart";
 
 export function parseOptionsField<T extends object>(input: unknown): T {
   if (input === undefined || input === null) {
@@ -25,6 +26,9 @@ export function parseOptionsField<T extends object>(input: unknown): T {
   }
 
   if (typeof input === "object") {
+    if (input && "value" in input) {
+      return parseOptionsField<T>((input as { value: unknown }).value);
+    }
     return input as T;
   }
 
@@ -50,4 +54,36 @@ export async function cleanupUploadedFiles(
       });
     }
   });
+}
+
+export async function resolveMultipartFile(
+  request: { file: () => Promise<MultipartFile | undefined>; body?: Record<string, unknown> },
+  fieldName: string
+): Promise<MultipartFile | undefined> {
+  const body = request.body;
+  const entry = body?.[fieldName];
+
+  if (Array.isArray(entry)) {
+    return entry[0] as MultipartFile;
+  }
+
+  if (entry && typeof entry === "object" && (entry as { type?: string }).type === "file") {
+    return entry as MultipartFile;
+  }
+
+  return request.file();
+}
+
+export function parseBoolean(value: string | undefined, defaultValue: boolean): boolean {
+  if (value === undefined) return defaultValue;
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return defaultValue;
+}
+
+export function parseNumber(value: string | undefined, defaultValue: number): number {
+  if (value === undefined) return defaultValue;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
 }

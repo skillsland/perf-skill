@@ -5,6 +5,7 @@
 import OpenAI from "openai";
 import type { LLMConfig } from "../types.js";
 import { logger } from "../utils/logger.js";
+import { withTimeout } from "../utils/limits.js";
 
 export interface LLMResponse {
   content: string;
@@ -31,6 +32,46 @@ export interface ChatOptions {
   jsonMode?: boolean;
 }
 
+const DEFAULT_LLM_TIMEOUT_MS = 30_000;
+const DEFAULT_LLM_MAX_RETRIES = 2;
+const DEFAULT_LLM_RETRY_DELAY_MS = 500;
+
+function parseEnvNumber(value: string | undefined, fallback: number): number {
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function withRetries<T>(
+  fn: () => Promise<T>,
+  options: { maxRetries: number; baseDelayMs: number; label: string }
+): Promise<T> {
+  let attempt = 0;
+  // attempt = 0 is the initial try
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt >= options.maxRetries) {
+        throw error;
+      }
+      const delay = options.baseDelayMs * Math.pow(2, attempt);
+      const jitter = Math.floor(Math.random() * 100);
+      logger.warn(`${options.label} failed, retrying`, {
+        attempt: attempt + 1,
+        delayMs: delay + jitter,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await sleep(delay + jitter);
+      attempt += 1;
+    }
+  }
+}
+
 /**
  * Create an LLM client based on configuration
  */
@@ -55,6 +96,9 @@ class OpenAICompatibleClient implements LLMClient {
   private model: string;
   private defaultMaxTokens: number;
   private defaultTemperature: number;
+  private timeoutMs: number;
+  private maxRetries: number;
+  private retryDelayMs: number;
 
   constructor(config: LLMConfig) {
     const apiKey = config.apiKey || process.env.OPENAI_API_KEY;
@@ -70,6 +114,9 @@ class OpenAICompatibleClient implements LLMClient {
     this.model = config.model || "gpt-4o";
     this.defaultMaxTokens = config.maxTokens || 4096;
     this.defaultTemperature = config.temperature ?? 0.1;
+    this.timeoutMs = config.timeoutMs ?? parseEnvNumber(process.env.LLM_TIMEOUT_MS, DEFAULT_LLM_TIMEOUT_MS);
+    this.maxRetries = config.maxRetries ?? parseEnvNumber(process.env.LLM_MAX_RETRIES, DEFAULT_LLM_MAX_RETRIES);
+    this.retryDelayMs = config.retryDelayMs ?? parseEnvNumber(process.env.LLM_RETRY_DELAY_MS, DEFAULT_LLM_RETRY_DELAY_MS);
   }
 
   async chat(messages: ChatMessage[], options: ChatOptions = {}): Promise<LLMResponse> {
@@ -82,16 +129,27 @@ class OpenAICompatibleClient implements LLMClient {
     });
 
     try {
-      const response = await this.client.chat.completions.create({
-        model: this.model,
-        messages: messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-        max_tokens: options.maxTokens || this.defaultMaxTokens,
-        temperature: options.temperature ?? this.defaultTemperature,
-        response_format: options.jsonMode ? { type: "json_object" } : undefined,
-      });
+      const response = await withRetries(
+        () => withTimeout(
+          this.client.chat.completions.create({
+            model: this.model,
+            messages: messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+            max_tokens: options.maxTokens || this.defaultMaxTokens,
+            temperature: options.temperature ?? this.defaultTemperature,
+            response_format: options.jsonMode ? { type: "json_object" } : undefined,
+          }),
+          this.timeoutMs,
+          "LLM request timed out"
+        ),
+        {
+          maxRetries: this.maxRetries,
+          baseDelayMs: this.retryDelayMs,
+          label: "OpenAI request",
+        }
+      );
 
       const durationMs = performance.now() - startTime;
       const content = response.choices[0]?.message?.content || "";
@@ -132,6 +190,9 @@ class AnthropicClient implements LLMClient {
   private model: string;
   private defaultMaxTokens: number;
   private defaultTemperature: number;
+  private timeoutMs: number;
+  private maxRetries: number;
+  private retryDelayMs: number;
 
   constructor(config: LLMConfig) {
     this.apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY || "";
@@ -143,6 +204,9 @@ class AnthropicClient implements LLMClient {
     this.model = config.model || "claude-sonnet-4-20250514";
     this.defaultMaxTokens = config.maxTokens || 4096;
     this.defaultTemperature = config.temperature ?? 0.1;
+    this.timeoutMs = config.timeoutMs ?? parseEnvNumber(process.env.LLM_TIMEOUT_MS, DEFAULT_LLM_TIMEOUT_MS);
+    this.maxRetries = config.maxRetries ?? parseEnvNumber(process.env.LLM_MAX_RETRIES, DEFAULT_LLM_MAX_RETRIES);
+    this.retryDelayMs = config.retryDelayMs ?? parseEnvNumber(process.env.LLM_RETRY_DELAY_MS, DEFAULT_LLM_RETRY_DELAY_MS);
   }
 
   async chat(messages: ChatMessage[], options: ChatOptions = {}): Promise<LLMResponse> {
@@ -163,21 +227,37 @@ class AnthropicClient implements LLMClient {
     });
 
     try {
-      const response = await fetch(`${this.baseUrl}/v1/messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": this.apiKey,
-          "anthropic-version": "2023-06-01",
+      const response = await withRetries(
+        async () => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+          try {
+            return await fetch(`${this.baseUrl}/v1/messages`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": this.apiKey,
+                "anthropic-version": "2023-06-01",
+              },
+              body: JSON.stringify({
+                model: this.model,
+                max_tokens: options.maxTokens || this.defaultMaxTokens,
+                temperature: options.temperature ?? this.defaultTemperature,
+                system: systemMessage,
+                messages: userMessages,
+              }),
+              signal: controller.signal,
+            });
+          } finally {
+            clearTimeout(timer);
+          }
         },
-        body: JSON.stringify({
-          model: this.model,
-          max_tokens: options.maxTokens || this.defaultMaxTokens,
-          temperature: options.temperature ?? this.defaultTemperature,
-          system: systemMessage,
-          messages: userMessages,
-        }),
-      });
+        {
+          maxRetries: this.maxRetries,
+          baseDelayMs: this.retryDelayMs,
+          label: "Anthropic request",
+        }
+      );
 
       if (!response.ok) {
         const error = await response.text();
