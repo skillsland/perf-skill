@@ -5,8 +5,9 @@
 
 import { Command } from "commander";
 import { readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, parse, resolve } from "node:path";
 import { analyze, diff, type DiffOptions } from "../index.js";
+import { parseDurationInput, runCpuProfile } from "../profile/runner.js";
 import { setLogLevel } from "../utils/logger.js";
 import { validateProfileExtension } from "../utils/limits.js";
 import {
@@ -24,6 +25,78 @@ program
   .name("perf-skill")
   .description("Analyze pprof profiles with AI-powered recommendations")
   .version("1.0.0");
+
+type AnalyzeCliOptions = AnalyzeCommandOptions & {
+  output?: string;
+  json?: string;
+  llmProvider?: string;
+  llmModel?: string;
+  verbose?: boolean;
+};
+
+function parseOptionalInt(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function deriveSiblingPath(basePath: string, suffix: string, defaultExt: string): string {
+  const parsed = parse(basePath);
+  const ext = parsed.ext || defaultExt;
+  const name = parsed.ext ? parsed.name : parsed.base;
+  const filename = `${name}.${suffix}${ext}`;
+  return parsed.dir ? join(parsed.dir, filename) : filename;
+}
+
+async function executeAnalyze(profilePath: string, opts: AnalyzeCliOptions): Promise<void> {
+  if (opts.verbose) {
+    setLogLevel("debug");
+  }
+
+  const resolvedPath = resolve(profilePath);
+  validateProfileExtension(resolvedPath);
+
+  const options = buildAnalyzeOptions(opts);
+
+  if (opts.llmProvider || opts.llmModel) {
+    options.llm = {
+      provider: opts.llmProvider || "openai",
+      model: opts.llmModel || "gpt-4o",
+    };
+  }
+
+  console.log(`Analyzing ${profilePath}...`);
+  const result = await analyze(resolvedPath, options);
+
+  if (opts.output) {
+    await writeFile(opts.output, result.markdown, "utf-8");
+    console.log(`Markdown saved to ${opts.output}`);
+  } else {
+    console.log("\n" + result.markdown);
+  }
+
+  if (opts.json) {
+    const jsonResult = {
+      profileMeta: result.profileMeta,
+      hotspots: result.hotspots,
+      recommendations: result.recommendations,
+      nextSteps: result.nextSteps,
+      metrics: result.metrics,
+    };
+    await writeFile(opts.json, JSON.stringify(jsonResult, null, 2), "utf-8");
+    console.log(`JSON saved to ${opts.json}`);
+  }
+
+  if (opts.output) {
+    console.log(`\nFound ${result.hotspots.length} hotspots`);
+    if (result.recommendations) {
+      console.log(`Generated ${result.recommendations.length} recommendations`);
+    }
+    if (result.metrics) {
+      console.log(`Processing time: ${result.metrics.totalMs.toFixed(0)}ms`);
+    }
+  }
+}
 
 // Analyze command (default)
 program
@@ -46,57 +119,130 @@ program
   .option("--no-redact", "Disable redaction of sensitive information")
   .option("-v, --verbose", "Enable verbose logging")
   .action(async (profilePath, opts) => {
+    try {
+      await executeAnalyze(profilePath, opts as AnalyzeCliOptions);
+    } catch (error) {
+      console.error("Error:", error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Run command (profile + analyze)
+program
+  .command("run")
+  .description("Profile a Node entry file and analyze the resulting CPU profile")
+  .argument("<entry>", "Entry file to run (js/mjs/cjs)")
+  .argument("[entryArgs...]", "Arguments passed to the entry file")
+  .option("-d, --duration <duration>", "CPU profile duration (e.g. 10s, 5000ms)", "10s")
+  .option("--profile-out <file>", "Profile output file", "cpu.pb.gz")
+  .option("--heap", "Also capture a heap profile")
+  .option("--heap-profile-out <file>", "Heap profile output file", "heap.pb.gz")
+  .option("--heap-interval-bytes <n>", "Heap sampling interval in bytes")
+  .option("--heap-stack-depth <n>", "Heap sampling stack depth")
+  .option("--heap-output <file>", "Heap markdown output file")
+  .option("--heap-json <file>", "Heap JSON output file")
+  .option("-f, --format <format>", "Output format: summary, detailed, adaptive", "adaptive")
+  .option("-t, --type <type>", "Profile type: cpu, heap, auto", "auto")
+  .option("-o, --output <file>", "Output markdown file")
+  .option("-j, --json <file>", "Output JSON results file")
+  .option("-s, --source-dir <path>", "Source directory for code context")
+  .option("--no-source", "Disable source code inclusion")
+  .option("--max-hotspots <n>", "Maximum hotspots to show", "10")
+  .option("-m, --mode <mode>", "Mode: convert-only, analyze", "analyze")
+  .option("--llm-provider <provider>", "LLM provider: openai, azure-openai, anthropic, custom")
+  .option("--llm-model <model>", "LLM model name")
+  .option("--service <name>", "Service name for context")
+  .option("--scenario <desc>", "Scenario description")
+  .option("--slo <target>", "Target SLO")
+  .option("--no-redact", "Disable redaction of sensitive information")
+  .option("-v, --verbose", "Enable verbose logging")
+  .action(async (entryPath, entryArgs, opts) => {
+    try {
+      if (opts.verbose) {
+        setLogLevel("debug");
+      }
+
+      const durationMs = parseDurationInput(opts.duration);
+      const profilePath = resolve(opts.profileOut);
+      const heapEnabled = Boolean(opts.heap);
+      const heapIntervalBytes = parseOptionalInt(opts.heapIntervalBytes);
+      const heapStackDepth = parseOptionalInt(opts.heapStackDepth);
+      const cpuOutput = opts.output ?? (heapEnabled ? "cpu.md" : undefined);
+      const cpuJson = opts.json;
+      const heapOutput = heapEnabled
+        ? opts.heapOutput ?? (opts.output ? deriveSiblingPath(opts.output, "heap", ".md") : "heap.md")
+        : undefined;
+      const heapJson = heapEnabled
+        ? opts.heapJson ?? (cpuJson ? deriveSiblingPath(cpuJson, "heap", ".json") : undefined)
+        : undefined;
+
+      console.log(`Profiling ${entryPath} for ${opts.duration}...`);
+      const { heapProfilePath } = await runCpuProfile({
+        entryPath,
+        entryArgs,
+        durationMs,
+        outPath: profilePath,
+        enableHeap: heapEnabled,
+        heapOutPath: heapEnabled ? resolve(opts.heapProfileOut) : undefined,
+        heapIntervalBytes,
+        heapStackDepth,
+      });
+
+      await executeAnalyze(
+        profilePath,
+        { ...(opts as AnalyzeCliOptions), output: cpuOutput, json: cpuJson, type: "cpu" }
+      );
+
+      if (heapEnabled && heapProfilePath) {
+        await executeAnalyze(
+          heapProfilePath,
+          { ...(opts as AnalyzeCliOptions), output: heapOutput, json: heapJson, type: "heap" }
+        );
+      }
+    } catch (error) {
+      console.error("Error:", error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+// Profile-only command
+program
+  .command("profile")
+  .description("Generate a CPU profile for a Node entry file")
+  .argument("<entry>", "Entry file to run (js/mjs/cjs)")
+  .argument("[entryArgs...]", "Arguments passed to the entry file")
+  .option("-d, --duration <duration>", "CPU profile duration (e.g. 10s, 5000ms)", "10s")
+  .option("-o, --output <file>", "Profile output file", "cpu.pb.gz")
+  .option("--heap", "Also capture a heap profile")
+  .option("--heap-profile-out <file>", "Heap profile output file", "heap.pb.gz")
+  .option("--heap-interval-bytes <n>", "Heap sampling interval in bytes")
+  .option("--heap-stack-depth <n>", "Heap sampling stack depth")
+  .option("-v, --verbose", "Enable verbose logging")
+  .action(async (entryPath, entryArgs, opts) => {
     if (opts.verbose) {
       setLogLevel("debug");
     }
 
     try {
-      const resolvedPath = resolve(profilePath);
-      validateProfileExtension(resolvedPath);
-
-      const options = buildAnalyzeOptions(opts as AnalyzeCommandOptions);
-
-      // Configure LLM if provided
-      if (opts.llmProvider || opts.llmModel) {
-        options.llm = {
-          provider: opts.llmProvider || "openai",
-          model: opts.llmModel || "gpt-4o",
-        };
-      }
-
-      console.log(`Analyzing ${profilePath}...`);
-      const result = await analyze(resolvedPath, options);
-
-      // Output markdown
-      if (opts.output) {
-        await writeFile(opts.output, result.markdown, "utf-8");
-        console.log(`Markdown saved to ${opts.output}`);
-      } else {
-        console.log("\n" + result.markdown);
-      }
-
-      // Output JSON
-      if (opts.json) {
-        const jsonResult = {
-          profileMeta: result.profileMeta,
-          hotspots: result.hotspots,
-          recommendations: result.recommendations,
-          nextSteps: result.nextSteps,
-          metrics: result.metrics,
-        };
-        await writeFile(opts.json, JSON.stringify(jsonResult, null, 2), "utf-8");
-        console.log(`JSON saved to ${opts.json}`);
-      }
-
-      // Print summary to stderr if outputting to file
-      if (opts.output) {
-        console.log(`\nFound ${result.hotspots.length} hotspots`);
-        if (result.recommendations) {
-          console.log(`Generated ${result.recommendations.length} recommendations`);
-        }
-        if (result.metrics) {
-          console.log(`Processing time: ${result.metrics.totalMs.toFixed(0)}ms`);
-        }
+      const durationMs = parseDurationInput(opts.duration);
+      const profilePath = resolve(opts.output);
+      const heapEnabled = Boolean(opts.heap);
+      const heapIntervalBytes = parseOptionalInt(opts.heapIntervalBytes);
+      const heapStackDepth = parseOptionalInt(opts.heapStackDepth);
+      console.log(`Profiling ${entryPath} for ${opts.duration}...`);
+      const { heapProfilePath } = await runCpuProfile({
+        entryPath,
+        entryArgs,
+        durationMs,
+        outPath: profilePath,
+        enableHeap: heapEnabled,
+        heapOutPath: heapEnabled ? resolve(opts.heapProfileOut) : undefined,
+        heapIntervalBytes,
+        heapStackDepth,
+      });
+      console.log(`Profile saved to ${profilePath}`);
+      if (heapEnabled && heapProfilePath) {
+        console.log(`Heap profile saved to ${heapProfilePath}`);
       }
     } catch (error) {
       console.error("Error:", error instanceof Error ? error.message : error);

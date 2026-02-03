@@ -32,6 +32,12 @@ perf-skill convert cpu.pb.gz -o report.md
 # Full analysis with AI recommendations
 perf-skill analyze cpu.pb.gz --mode analyze
 
+# Profile a Node entry (CPU, 10s) and analyze
+perf-skill run slow.mjs --duration 10s
+
+# CPU + Heap profiling (separate reports)
+perf-skill run slow.mjs --heap --output cpu.md --heap-output heap.md
+
 # Compare two profiles
 perf-skill diff base.pb.gz current.pb.gz -o diff.md
 
@@ -105,6 +111,44 @@ curl -X POST http://localhost:3000/v1/pprof/diff \
 | `--service`        | Service name for context                         | -          |
 | `--scenario`       | Scenario description                             | -          |
 | `--redact/--no-redact` | Redact sensitive information                | `true`     |
+
+### `perf-skill run <entry> [entryArgs...]`
+
+| Option             | Description                                      | Default    |
+| ------------------ | ------------------------------------------------ | ---------- |
+| `-d, --duration`   | CPU profile duration (e.g. `10s`, `5000ms`)      | `10s`      |
+| `--profile-out`    | Profile output file                              | `cpu.pb.gz`|
+| `--heap`           | Also capture a heap profile                      | `false`    |
+| `--heap-profile-out` | Heap profile output file                       | `heap.pb.gz`|
+| `--heap-interval-bytes` | Heap sampling interval (bytes)             | `524288`   |
+| `--heap-stack-depth` | Heap sampling stack depth                     | `64`       |
+| `--heap-output`    | Heap markdown output file                        | `heap.md` (if heap enabled) |
+| `--heap-json`      | Heap JSON output file                            | -          |
+| `-f, --format`     | Output format: `summary`, `detailed`, `adaptive` | `adaptive` |
+| `-t, --type`       | Profile type: `cpu`, `heap`, `auto`              | `auto`     |
+| `-o, --output`     | Output markdown file                             | stdout     |
+| `-j, --json`       | Output JSON results file                         | -          |
+| `-m, --mode`       | `convert-only` or `analyze`                      | `analyze`  |
+| `-s, --source-dir` | Source directory for code context                | -          |
+| `--max-hotspots`   | Maximum hotspots to show                         | `10`       |
+| `--llm-provider`   | LLM provider: `openai`, `anthropic`, etc.        | `openai`   |
+| `--llm-model`      | LLM model name                                   | `gpt-4o`   |
+| `--service`        | Service name for context                         | -          |
+| `--scenario`       | Scenario description                             | -          |
+| `--redact/--no-redact` | Redact sensitive information                | `true`     |
+
+When `--heap` is enabled and `--output` is omitted, `perf-skill` writes `cpu.md` and `heap.md` instead of printing to stdout.
+
+### `perf-skill profile <entry> [entryArgs...]`
+
+| Option           | Description                                 | Default     |
+| ---------------- | ------------------------------------------- | ----------- |
+| `-d, --duration` | CPU profile duration (e.g. `10s`, `5000ms`) | `10s`       |
+| `-o, --output`   | Profile output file                         | `cpu.pb.gz` |
+| `--heap`         | Also capture a heap profile                 | `false`     |
+| `--heap-profile-out` | Heap profile output file                | `heap.pb.gz`|
+| `--heap-interval-bytes` | Heap sampling interval (bytes)         | `524288`   |
+| `--heap-stack-depth` | Heap sampling stack depth                 | `64`       |
 
 ### `perf-skill diff <base.pb.gz> <current.pb.gz>`
 
@@ -305,6 +349,7 @@ const server = await createServer({
 
 - Node.js >= 22.6.0
 - For AI analysis: API key for OpenAI, Anthropic, or compatible provider
+- CPU profiling uses bundled `@datadog/pprof` (native module) on supported platforms
 
 ## Architecture
 

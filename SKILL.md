@@ -1,7 +1,7 @@
 ---
 name: perf-skill
-description: Analyze pprof CPU and heap profiles with AI-powered recommendations. Use when the user has a .pb.gz profile file and wants to understand performance bottlenecks, compare profiles, or get optimization suggestions.
-argument-hint: [profile.pb.gz] [options]
+description: Analyze pprof CPU and heap profiles with AI-powered recommendations, or profile a Node.js entry file and generate a full report. Use when the user has a .pb.gz profile file or wants to profile a Node.js script and get optimization suggestions.
+argument-hint: [profile.pb.gz|entry.js] [options]
 allowed-tools: Bash(node *), Bash(npx *), Read, Glob
 ---
 
@@ -24,6 +24,19 @@ npx perf-skill analyze $ARGUMENTS --mode analyze
 npx perf-skill analyze $ARGUMENTS -o analysis.md -j results.json
 ```
 
+### Profile a Node Entry and Analyze (One Command)
+
+```bash
+# Default CPU profiling (10s) + analysis
+npx perf-skill run slow.mjs
+
+# Customize duration and output
+npx perf-skill run slow.mjs --duration 10s -o analysis.md
+
+# CPU + Heap profiling (separate reports)
+npx perf-skill run slow.mjs --heap --output cpu.md --heap-output heap.md
+```
+
 ### Compare Two Profiles (Diff)
 
 ```bash
@@ -38,10 +51,17 @@ npx perf-skill diff base.pb.gz current.pb.gz --format diff-detailed
 
 Use `perf-skill` when:
 - User provides a `.pb.gz` pprof profile file
+- User provides a Node.js entry file (`.js/.mjs/.cjs`) and wants an end-to-end performance report
 - User asks "why is my app slow?" with a profile attached
 - User wants to compare performance before/after a change
 - User needs help interpreting profile data
 - User asks about CPU or memory hotspots
+
+## Routing
+
+- If the argument ends with `.pb`, `.pb.gz`, or `.pprof`, run `analyze` or `diff` directly.
+- If the argument ends with `.js`, `.mjs`, or `.cjs`, run `perf-skill run <entry>` to generate a CPU profile and analyze it.
+- If the user asks for both CPU and heap (including misspellings like "heep" or terms like "memory"/"heap"), add `--heap` and save separate reports (`--output` + `--heap-output`).
 
 ## Available Commands
 
@@ -85,6 +105,43 @@ Convert profile to markdown without AI analysis (faster).
 ```bash
 perf-skill convert profile.pb.gz -o report.md
 ```
+
+### `run`
+
+Profile a Node entry file (CPU) and analyze the resulting profile.
+
+```bash
+perf-skill run entry.js [entryArgs...]
+```
+
+**Options:**
+- `-d, --duration <duration>`: Profiling duration (default: `10s`)
+- `--profile-out <file>`: Profile output file (default: `cpu.pb.gz`)
+- `--heap`: Also capture heap profile
+- `--heap-profile-out <file>`: Heap profile output file (default: `heap.pb.gz`)
+- `--heap-output <file>`: Heap markdown output file (default: derived from CPU output or `heap.md`)
+- `--heap-json <file>`: Heap JSON output file (optional)
+- `--heap-interval-bytes <n>`: Heap sampling interval (bytes, default: `524288`)
+- `--heap-stack-depth <n>`: Heap sampling stack depth (default: `64`)
+- All `analyze` options (`--format`, `--mode`, `--output`, etc.)
+
+When `--heap` is enabled and `--output` is omitted, the CLI writes `cpu.md` and `heap.md` instead of printing to stdout.
+
+### `profile`
+
+Generate a CPU profile for a Node entry file without analysis.
+
+```bash
+perf-skill profile entry.js [entryArgs...]
+```
+
+**Options:**
+- `-d, --duration <duration>`: Profiling duration (default: `10s`)
+- `-o, --output <file>`: Profile output file (default: `cpu.pb.gz`)
+- `--heap`: Also capture heap profile
+- `--heap-profile-out <file>`: Heap profile output file (default: `heap.pb.gz`)
+- `--heap-interval-bytes <n>`: Heap sampling interval (bytes, default: `524288`)
+- `--heap-stack-depth <n>`: Heap sampling stack depth (default: `64`)
 
 ## Programmatic Usage
 
@@ -164,6 +221,7 @@ writeFileSync('heap.pb.gz', gzipSync(heapProfile.encode()));
 
 - Node.js >= 22.6.0
 - For AI analysis: Set `OPENAI_API_KEY` or configure LLM provider
+- CPU profiling uses bundled `@datadog/pprof` (native module); supported on common platforms
 
 ## Troubleshooting
 
