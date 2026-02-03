@@ -355,34 +355,6 @@ const server = await createServer({
 - For AI analysis: API key for OpenAI, Anthropic, or compatible provider
 - CPU profiling uses bundled `@datadog/pprof` (native module) on supported platforms
 
-## Architecture
-
-```
-perf-skill/
-├── src/
-│   ├── index.ts          # Main exports
-│   ├── types.ts          # TypeScript types
-│   ├── convert/          # pprof-to-md wrapper
-│   │   ├── converter.ts  # Core conversion
-│   │   ├── sanitize.ts   # Redaction & limits
-│   │   └── extract.ts    # Hotspot parsing
-│   ├── llm/              # LLM integration
-│   │   ├── client.ts     # OpenAI/Anthropic clients
-│   │   ├── prompt.ts     # Prompt templates
-│   │   ├── schema.ts     # Zod schemas
-│   │   └── validate.ts   # Output validation
-│   ├── diff/             # Profile comparison
-│   │   ├── engine.ts     # Pure TS diff engine
-│   │   └── markdown.ts   # Diff report generation
-│   ├── cli/              # CLI implementation
-│   ├── server/           # HTTP API
-│   └── skill/            # Agent integration
-│       ├── handler.ts    # Skill handlers
-│       └── manifest.ts   # Tool schema
-├── SKILL.md              # Claude Code skill file
-└── package.json
-```
-
 ## API Reference
 
 ### `analyze(profile, options): Promise<AnalyzeResult>`
@@ -401,14 +373,14 @@ Low-level conversion function.
 
 Create an LLM client for custom integrations.
 
-## License
-
-MIT
-
-### Updating Prompt Fixtures
+## Updating Prompt Fixtures
 
 If you change prompt templates and need to refresh fixtures:
 
 ```bash
 npm run update-prompts
 ```
+
+## License
+
+MIT
