@@ -180,7 +180,7 @@ export function stabilizeAnchors(content: string): string {
   
   return content.replace(anchorPattern, (match, id) => {
     const stableId = generateSlug(id);
-    return `<a id="${stableId}">`;
+    return match.replace(id, stableId);
   });
 }
 

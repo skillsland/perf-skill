@@ -91,15 +91,13 @@ export {
 } from "./utils/fs.js";
 
 // Import for main functions
-import { convertProfileToMarkdown, type ConvertResult } from "./convert/index.js";
+import { convertProfileToMarkdown } from "./convert/index.js";
 import { 
   createLLMClient, 
   getDefaultLLMConfig,
   SYSTEM_PROMPT,
   buildAnalysisPrompt,
-  buildDiffAnalysisPrompt,
   parseAnalysisOutput,
-  parseDiffAnalysisOutput,
   createFallbackResult,
 } from "./llm/index.js";
 import { diffProfiles, generateDiffMarkdown, type DiffData } from "./diff/index.js";

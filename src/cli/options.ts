@@ -2,7 +2,7 @@
  * CLI option builders (pure helpers for testing)
  */
 
-import type { AnalyzeOptions, DiffOptions, ResourceLimits } from "../types.js";
+import type { AnalyzeOptions, DiffOptions, LLMConfig, ResourceLimits } from "../types.js";
 
 export interface AnalyzeCommandOptions {
   format: AnalyzeOptions["format"];
@@ -15,7 +15,7 @@ export interface AnalyzeCommandOptions {
   service?: string;
   scenario?: string;
   slo?: string;
-  llmProvider?: string;
+  llmProvider?: LLMConfig["provider"];
   llmModel?: string;
 }
 

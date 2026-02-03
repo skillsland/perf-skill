@@ -97,68 +97,68 @@ curl -X POST http://localhost:3000/v1/pprof/diff \
 
 ### `perf-skill analyze <profile.pb.gz>`
 
-| Option             | Description                                      | Default    |
-| ------------------ | ------------------------------------------------ | ---------- |
-| `-f, --format`     | Output format: `summary`, `detailed`, `adaptive` | `adaptive` |
-| `-t, --type`       | Profile type: `cpu`, `heap`, `auto`              | `auto`     |
-| `-o, --output`     | Output markdown file                             | stdout     |
-| `-j, --json`       | Output JSON results file                         | -          |
-| `-m, --mode`       | `convert-only` or `analyze`                      | `analyze`  |
-| `-s, --source-dir` | Source directory for code context                | -          |
-| `--max-hotspots`   | Maximum hotspots to show                         | `10`       |
-| `--llm-provider`   | LLM provider: `openai`, `anthropic`, etc.        | `openai`   |
-| `--llm-model`      | LLM model name                                   | `gpt-4o`   |
-| `--service`        | Service name for context                         | -          |
-| `--scenario`       | Scenario description                             | -          |
-| `--redact/--no-redact` | Redact sensitive information                | `true`     |
+| Option                 | Description                                      | Default    |
+| ---------------------- | ------------------------------------------------ | ---------- |
+| `-f, --format`         | Output format: `summary`, `detailed`, `adaptive` | `adaptive` |
+| `-t, --type`           | Profile type: `cpu`, `heap`, `auto`              | `auto`     |
+| `-o, --output`         | Output markdown file                             | stdout     |
+| `-j, --json`           | Output JSON results file                         | -          |
+| `-m, --mode`           | `convert-only` or `analyze`                      | `analyze`  |
+| `-s, --source-dir`     | Source directory for code context                | -          |
+| `--max-hotspots`       | Maximum hotspots to show                         | `10`       |
+| `--llm-provider`       | LLM provider: `openai`, `anthropic`, etc.        | `openai`   |
+| `--llm-model`          | LLM model name                                   | `gpt-5.2`  |
+| `--service`            | Service name for context                         | -          |
+| `--scenario`           | Scenario description                             | -          |
+| `--redact/--no-redact` | Redact sensitive information                     | `true`     |
 
 ### `perf-skill run <entry> [entryArgs...]`
 
-| Option             | Description                                      | Default    |
-| ------------------ | ------------------------------------------------ | ---------- |
-| `-d, --duration`   | CPU profile duration (e.g. `10s`, `5000ms`)      | `10s`      |
-| `--profile-out`    | Profile output file                              | `cpu.pb.gz`|
-| `--heap`           | Also capture a heap profile                      | `false`    |
-| `--heap-profile-out` | Heap profile output file                       | `heap.pb.gz`|
-| `--heap-interval-bytes` | Heap sampling interval (bytes)             | `524288`   |
-| `--heap-stack-depth` | Heap sampling stack depth                     | `64`       |
-| `--heap-output`    | Heap markdown output file                        | `heap.md` (if heap enabled) |
-| `--heap-json`      | Heap JSON output file                            | -          |
-| `-f, --format`     | Output format: `summary`, `detailed`, `adaptive` | `adaptive` |
-| `-t, --type`       | Profile type: `cpu`, `heap`, `auto`              | `auto`     |
-| `-o, --output`     | Output markdown file                             | stdout     |
-| `-j, --json`       | Output JSON results file                         | -          |
-| `-m, --mode`       | `convert-only` or `analyze`                      | `analyze`  |
-| `-s, --source-dir` | Source directory for code context                | -          |
-| `--max-hotspots`   | Maximum hotspots to show                         | `10`       |
-| `--llm-provider`   | LLM provider: `openai`, `anthropic`, etc.        | `openai`   |
-| `--llm-model`      | LLM model name                                   | `gpt-4o`   |
-| `--service`        | Service name for context                         | -          |
-| `--scenario`       | Scenario description                             | -          |
-| `--redact/--no-redact` | Redact sensitive information                | `true`     |
+| Option                  | Description                                      | Default                     |
+| ----------------------- | ------------------------------------------------ | --------------------------- |
+| `-d, --duration`        | CPU profile duration (e.g. `10s`, `5000ms`)      | `10s`                       |
+| `--profile-out`         | Profile output file                              | `cpu.pb.gz`                 |
+| `--heap`                | Also capture a heap profile                      | `false`                     |
+| `--heap-profile-out`    | Heap profile output file                         | `heap.pb.gz`                |
+| `--heap-interval-bytes` | Heap sampling interval (bytes)                   | `524288`                    |
+| `--heap-stack-depth`    | Heap sampling stack depth                        | `64`                        |
+| `--heap-output`         | Heap markdown output file                        | `heap.md` (if heap enabled) |
+| `--heap-json`           | Heap JSON output file                            | -                           |
+| `-f, --format`          | Output format: `summary`, `detailed`, `adaptive` | `adaptive`                  |
+| `-t, --type`            | Profile type: `cpu`, `heap`, `auto`              | `auto`                      |
+| `-o, --output`          | Output markdown file                             | stdout                      |
+| `-j, --json`            | Output JSON results file                         | -                           |
+| `-m, --mode`            | `convert-only` or `analyze`                      | `analyze`                   |
+| `-s, --source-dir`      | Source directory for code context                | -                           |
+| `--max-hotspots`        | Maximum hotspots to show                         | `10`                        |
+| `--llm-provider`        | LLM provider: `openai`, `anthropic`, etc.        | `openai`                    |
+| `--llm-model`           | LLM model name                                   | `gpt-5.2`                   |
+| `--service`             | Service name for context                         | -                           |
+| `--scenario`            | Scenario description                             | -                           |
+| `--redact/--no-redact`  | Redact sensitive information                     | `true`                      |
 
 When `--heap` is enabled and `--output` is omitted, `perf-skill` writes `cpu.md` and `heap.md` instead of printing to stdout.
 
 ### `perf-skill profile <entry> [entryArgs...]`
 
-| Option           | Description                                 | Default     |
-| ---------------- | ------------------------------------------- | ----------- |
-| `-d, --duration` | CPU profile duration (e.g. `10s`, `5000ms`) | `10s`       |
-| `-o, --output`   | Profile output file                         | `cpu.pb.gz` |
-| `--heap`         | Also capture a heap profile                 | `false`     |
-| `--heap-profile-out` | Heap profile output file                | `heap.pb.gz`|
-| `--heap-interval-bytes` | Heap sampling interval (bytes)         | `524288`   |
-| `--heap-stack-depth` | Heap sampling stack depth                 | `64`       |
+| Option                  | Description                                 | Default      |
+| ----------------------- | ------------------------------------------- | ------------ |
+| `-d, --duration`        | CPU profile duration (e.g. `10s`, `5000ms`) | `10s`        |
+| `-o, --output`          | Profile output file                         | `cpu.pb.gz`  |
+| `--heap`                | Also capture a heap profile                 | `false`      |
+| `--heap-profile-out`    | Heap profile output file                    | `heap.pb.gz` |
+| `--heap-interval-bytes` | Heap sampling interval (bytes)              | `524288`     |
+| `--heap-stack-depth`    | Heap sampling stack depth                   | `64`         |
 
 ### `perf-skill diff <base.pb.gz> <current.pb.gz>`
 
-| Option               | Description                                      | Default               |
-| -------------------- | ------------------------------------------------ | --------------------- |
-| `-f, --format`       | `diff-summary`, `diff-detailed`, `diff-adaptive` | `diff-adaptive`       |
-| `-n, --normalize`    | `none`, `scale-to-base-total`, `per-second`      | `scale-to-base-total` |
-| `--max-regressions`  | Maximum regressions to show                      | `10`                  |
-| `--max-improvements` | Maximum improvements to show                     | `5`                   |
-| `--max-decompressed-bytes` | Maximum decompressed profile size (bytes)  | -                     |
+| Option                     | Description                                      | Default               |
+| -------------------------- | ------------------------------------------------ | --------------------- |
+| `-f, --format`             | `diff-summary`, `diff-detailed`, `diff-adaptive` | `diff-adaptive`       |
+| `-n, --normalize`          | `none`, `scale-to-base-total`, `per-second`      | `scale-to-base-total` |
+| `--max-regressions`        | Maximum regressions to show                      | `10`                  |
+| `--max-improvements`       | Maximum improvements to show                     | `5`                   |
+| `--max-decompressed-bytes` | Maximum decompressed profile size (bytes)        | -                     |
 
 ## Output Formats
 
@@ -254,24 +254,24 @@ writeFileSync("heap.pb.gz", gzipSync(heapProfile.encode()));
 
 ### Environment Variables
 
-| Variable            | Description                                     |
-| ------------------- | ----------------------------------------------- |
-| `OPENAI_API_KEY`    | OpenAI API key for analysis                     |
-| `ANTHROPIC_API_KEY` | Anthropic API key                               |
-| `LLM_PROVIDER`      | Default LLM provider                            |
-| `LLM_MODEL`         | Default LLM model                               |
-| `LLM_BASE_URL`      | Custom LLM API endpoint                         |
-| `LLM_TIMEOUT_MS`    | LLM request timeout in ms                       |
-| `LLM_MAX_RETRIES`   | LLM retry count for transient failures          |
-| `LLM_RETRY_DELAY_MS`| Base retry delay in ms                          |
-| `LOG_LEVEL`         | Logging level: `debug`, `info`, `warn`, `error` |
-| `LOG_FORMAT`        | Log format: `text`, `json`                      |
-| `CORS_ENABLED`      | Enable CORS (`true`/`false`)                    |
-| `CORS_ORIGIN`       | CORS origin(s), comma-separated or `*`          |
-| `HELMET_ENABLED`    | Enable Helmet (`true`/`false`)                  |
-| `RATE_LIMIT_ENABLED`| Enable rate limiting (`true`/`false`)           |
-| `RATE_LIMIT_MAX`    | Rate limit max requests per window              |
-| `RATE_LIMIT_WINDOW_MS` | Rate limit window size in ms                 |
+| Variable               | Description                                     |
+| ---------------------- | ----------------------------------------------- |
+| `OPENAI_API_KEY`       | OpenAI API key for analysis                     |
+| `ANTHROPIC_API_KEY`    | Anthropic API key                               |
+| `LLM_PROVIDER`         | Default LLM provider                            |
+| `LLM_MODEL`            | Default LLM model                               |
+| `LLM_BASE_URL`         | Custom LLM API endpoint                         |
+| `LLM_TIMEOUT_MS`       | LLM request timeout in ms                       |
+| `LLM_MAX_RETRIES`      | LLM retry count for transient failures          |
+| `LLM_RETRY_DELAY_MS`   | Base retry delay in ms                          |
+| `LOG_LEVEL`            | Logging level: `debug`, `info`, `warn`, `error` |
+| `LOG_FORMAT`           | Log format: `text`, `json`                      |
+| `CORS_ENABLED`         | Enable CORS (`true`/`false`)                    |
+| `CORS_ORIGIN`          | CORS origin(s), comma-separated or `*`          |
+| `HELMET_ENABLED`       | Enable Helmet (`true`/`false`)                  |
+| `RATE_LIMIT_ENABLED`   | Enable rate limiting (`true`/`false`)           |
+| `RATE_LIMIT_MAX`       | Rate limit max requests per window              |
+| `RATE_LIMIT_WINDOW_MS` | Rate limit window size in ms                    |
 
 Example:
 

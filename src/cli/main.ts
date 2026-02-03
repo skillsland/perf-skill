@@ -4,7 +4,7 @@
  */
 
 import { Command } from "commander";
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join, parse, resolve } from "node:path";
 import { analyze, diff, type DiffOptions } from "../index.js";
 import { parseDurationInput, runCpuProfile } from "../profile/runner.js";
@@ -60,8 +60,8 @@ async function executeAnalyze(profilePath: string, opts: AnalyzeCliOptions): Pro
 
   if (opts.llmProvider || opts.llmModel) {
     options.llm = {
-      provider: opts.llmProvider || "openai",
-      model: opts.llmModel || "gpt-4o",
+      provider: opts.llmProvider ?? "openai",
+      model: opts.llmModel || "gpt-5.2",
     };
   }
 

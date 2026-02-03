@@ -103,7 +103,9 @@ class OpenAICompatibleClient implements LLMClient {
   constructor(config: LLMConfig) {
     const apiKey = config.apiKey || process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error("OpenAI API key is required (set apiKey or OPENAI_API_KEY env var)");
+      throw new Error(
+        "OpenAI API key is required (set apiKey or OPENAI_API_KEY env var)"
+      );
     }
 
     this.client = new OpenAI({
@@ -111,15 +113,27 @@ class OpenAICompatibleClient implements LLMClient {
       baseURL: config.baseUrl || process.env.OPENAI_BASE_URL,
     });
 
-    this.model = config.model || "gpt-4o";
+    this.model = config.model || "gpt-5.2";
     this.defaultMaxTokens = config.maxTokens || 4096;
     this.defaultTemperature = config.temperature ?? 0.1;
-    this.timeoutMs = config.timeoutMs ?? parseEnvNumber(process.env.LLM_TIMEOUT_MS, DEFAULT_LLM_TIMEOUT_MS);
-    this.maxRetries = config.maxRetries ?? parseEnvNumber(process.env.LLM_MAX_RETRIES, DEFAULT_LLM_MAX_RETRIES);
-    this.retryDelayMs = config.retryDelayMs ?? parseEnvNumber(process.env.LLM_RETRY_DELAY_MS, DEFAULT_LLM_RETRY_DELAY_MS);
+    this.timeoutMs =
+      config.timeoutMs ??
+      parseEnvNumber(process.env.LLM_TIMEOUT_MS, DEFAULT_LLM_TIMEOUT_MS);
+    this.maxRetries =
+      config.maxRetries ??
+      parseEnvNumber(process.env.LLM_MAX_RETRIES, DEFAULT_LLM_MAX_RETRIES);
+    this.retryDelayMs =
+      config.retryDelayMs ??
+      parseEnvNumber(
+        process.env.LLM_RETRY_DELAY_MS,
+        DEFAULT_LLM_RETRY_DELAY_MS
+      );
   }
 
-  async chat(messages: ChatMessage[], options: ChatOptions = {}): Promise<LLMResponse> {
+  async chat(
+    messages: ChatMessage[],
+    options: ChatOptions = {}
+  ): Promise<LLMResponse> {
     const startTime = performance.now();
 
     logger.debug("LLM request", {
@@ -130,20 +144,23 @@ class OpenAICompatibleClient implements LLMClient {
 
     try {
       const response = await withRetries(
-        () => withTimeout(
-          this.client.chat.completions.create({
-            model: this.model,
-            messages: messages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-            max_tokens: options.maxTokens || this.defaultMaxTokens,
-            temperature: options.temperature ?? this.defaultTemperature,
-            response_format: options.jsonMode ? { type: "json_object" } : undefined,
-          }),
-          this.timeoutMs,
-          "LLM request timed out"
-        ),
+        () =>
+          withTimeout(
+            this.client.chat.completions.create({
+              model: this.model,
+              messages: messages.map((m) => ({
+                role: m.role,
+                content: m.content,
+              })),
+              max_tokens: options.maxTokens || this.defaultMaxTokens,
+              temperature: options.temperature ?? this.defaultTemperature,
+              response_format: options.jsonMode
+                ? { type: "json_object" }
+                : undefined,
+            }),
+            this.timeoutMs,
+            "LLM request timed out"
+          ),
         {
           maxRetries: this.maxRetries,
           baseDelayMs: this.retryDelayMs,
@@ -204,16 +221,29 @@ class AnthropicClient implements LLMClient {
     this.model = config.model || "claude-sonnet-4-20250514";
     this.defaultMaxTokens = config.maxTokens || 4096;
     this.defaultTemperature = config.temperature ?? 0.1;
-    this.timeoutMs = config.timeoutMs ?? parseEnvNumber(process.env.LLM_TIMEOUT_MS, DEFAULT_LLM_TIMEOUT_MS);
-    this.maxRetries = config.maxRetries ?? parseEnvNumber(process.env.LLM_MAX_RETRIES, DEFAULT_LLM_MAX_RETRIES);
-    this.retryDelayMs = config.retryDelayMs ?? parseEnvNumber(process.env.LLM_RETRY_DELAY_MS, DEFAULT_LLM_RETRY_DELAY_MS);
+    this.timeoutMs =
+      config.timeoutMs ??
+      parseEnvNumber(process.env.LLM_TIMEOUT_MS, DEFAULT_LLM_TIMEOUT_MS);
+    this.maxRetries =
+      config.maxRetries ??
+      parseEnvNumber(process.env.LLM_MAX_RETRIES, DEFAULT_LLM_MAX_RETRIES);
+    this.retryDelayMs =
+      config.retryDelayMs ??
+      parseEnvNumber(
+        process.env.LLM_RETRY_DELAY_MS,
+        DEFAULT_LLM_RETRY_DELAY_MS
+      );
   }
 
-  async chat(messages: ChatMessage[], options: ChatOptions = {}): Promise<LLMResponse> {
+  async chat(
+    messages: ChatMessage[],
+    options: ChatOptions = {}
+  ): Promise<LLMResponse> {
     const startTime = performance.now();
 
     // Extract system message
-    const systemMessage = messages.find((m) => m.role === "system")?.content || "";
+    const systemMessage =
+      messages.find((m) => m.role === "system")?.content || "";
     const userMessages = messages
       .filter((m) => m.role !== "system")
       .map((m) => ({
@@ -264,7 +294,7 @@ class AnthropicClient implements LLMClient {
         throw new Error(`Anthropic API error: ${response.status} - ${error}`);
       }
 
-      const data = await response.json() as {
+      const data = (await response.json()) as {
         content: Array<{ type: string; text: string }>;
         usage?: { input_tokens: number; output_tokens: number };
       };
@@ -301,14 +331,24 @@ class AnthropicClient implements LLMClient {
  * Get default LLM configuration from environment
  */
 export function getDefaultLLMConfig(): LLMConfig {
-  const provider = (process.env.LLM_PROVIDER as LLMConfig["provider"]) || "openai";
-  
+  const provider =
+    (process.env.LLM_PROVIDER as LLMConfig["provider"]) || "openai";
+
   return {
     provider,
-    model: process.env.LLM_MODEL || (provider === "anthropic" ? "claude-sonnet-4-20250514" : "gpt-4o"),
-    apiKey: process.env.LLM_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY,
+    model:
+      process.env.LLM_MODEL ||
+      (provider === "anthropic" ? "claude-sonnet-4-20250514" : "gpt-5.2"),
+    apiKey:
+      process.env.LLM_API_KEY ||
+      process.env.OPENAI_API_KEY ||
+      process.env.ANTHROPIC_API_KEY,
     baseUrl: process.env.LLM_BASE_URL,
-    maxTokens: process.env.LLM_MAX_TOKENS ? parseInt(process.env.LLM_MAX_TOKENS, 10) : undefined,
-    temperature: process.env.LLM_TEMPERATURE ? parseFloat(process.env.LLM_TEMPERATURE) : undefined,
+    maxTokens: process.env.LLM_MAX_TOKENS
+      ? parseInt(process.env.LLM_MAX_TOKENS, 10)
+      : undefined,
+    temperature: process.env.LLM_TEMPERATURE
+      ? parseFloat(process.env.LLM_TEMPERATURE)
+      : undefined,
   };
 }

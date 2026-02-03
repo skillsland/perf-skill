@@ -3,7 +3,7 @@
  */
 
 import Fastify, { type FastifyInstance } from "fastify";
-import multipart from "@fastify/multipart";
+import multipart, { type MultipartFile } from "@fastify/multipart";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -104,7 +104,10 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
 
     try {
       // Handle multipart file upload
-      const data = await resolveMultipartFile(request as { file: () => Promise<unknown>; body?: Record<string, unknown> }, "file");
+      const data = await resolveMultipartFile(
+        request as { file: () => Promise<MultipartFile | undefined>; body?: Record<string, unknown> },
+        "file"
+      );
       if (!data) {
         return reply.status(400).send({
           success: false,
@@ -175,7 +178,10 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
     Body: { options?: string | AnalyzeOptions };
   }>("/v1/pprof/convert", async (request, reply) => {
     try {
-      const data = await resolveMultipartFile(request as { file: () => Promise<unknown>; body?: Record<string, unknown> }, "file");
+      const data = await resolveMultipartFile(
+        request as { file: () => Promise<MultipartFile | undefined>; body?: Record<string, unknown> },
+        "file"
+      );
       if (!data) {
         return reply.status(400).send({
           success: false,
@@ -307,8 +313,9 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
 
   // Error handler
   server.setErrorHandler((error, request, reply) => {
+    const message = error instanceof Error ? error.message : String(error);
     logger.error("Server error", {
-      error: error.message,
+      error: message,
       url: request.url,
     });
 

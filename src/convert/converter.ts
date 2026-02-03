@@ -51,6 +51,8 @@ export async function convertProfileToMarkdown(
     format: options.format ?? "adaptive",
     profileType: options.profileType ?? "auto",
   });
+
+  const pprofProfileType = options.profileType === "auto" ? undefined : options.profileType;
   
   const tempExt = getProfileExtension(profileBytes);
 
@@ -58,13 +60,13 @@ export async function convertProfileToMarkdown(
   const rawMarkdown = await withTempFile(profileBytes, async (tempPath) => {
     // pprof-to-md convert function
     const md = await Promise.resolve(
-      pprofToMd(tempPath, {
-        format: options.format ?? "adaptive",
-        profileType: options.profileType ?? "auto",
-        maxHotspots: options.maxHotspots ?? 10,
-        sourceDir: options.sourceDir,
-        source: options.includeSource !== false,
-      })
+        pprofToMd(tempPath, {
+          format: options.format ?? "adaptive",
+          profileType: pprofProfileType,
+          maxHotspots: options.maxHotspots ?? 10,
+          sourceDir: options.sourceDir,
+          includeSource: options.includeSource !== false,
+        })
     );
     return md as string;
   }, "pprof", tempExt);
@@ -86,10 +88,10 @@ export async function convertProfileToMarkdown(
       const md = await Promise.resolve(
         pprofToMd(tempPath, {
           format: "summary",
-          profileType: options.profileType ?? "auto",
+          profileType: pprofProfileType,
           maxHotspots: Math.min(options.maxHotspots ?? 10, 10),
           sourceDir: options.sourceDir,
-          source: false, // Disable source for smaller output
+          includeSource: false, // Disable source for smaller output
         })
       );
       return md as string;

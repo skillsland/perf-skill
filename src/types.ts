@@ -78,7 +78,7 @@ export interface AnalyzeOptions extends ConvertOptions {
 }
 
 // Diff options
-export interface DiffOptions extends ConvertOptions {
+export interface DiffOptions extends Omit<ConvertOptions, "format"> {
   /** Diff output format */
   format?: DiffFormat | OutputFormat;
   /** Normalization mode for comparison */

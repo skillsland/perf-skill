@@ -81,7 +81,7 @@ export function validateAnalysisOutput(data: unknown): {
   if (result.success) {
     return { success: true, data: result.data };
   }
-  const issues = ("issues" in result.error ? result.error.issues : result.error.errors) || [];
+  const issues = result.error.issues;
   return {
     success: false,
     errors: issues.map((e) => `${e.path.join(".")}: ${e.message}`),
@@ -100,7 +100,7 @@ export function validateDiffAnalysisOutput(data: unknown): {
   if (result.success) {
     return { success: true, data: result.data };
   }
-  const issues = ("issues" in result.error ? result.error.issues : result.error.errors) || [];
+  const issues = result.error.issues;
   return {
     success: false,
     errors: issues.map((e) => `${e.path.join(".")}: ${e.message}`),

@@ -76,7 +76,7 @@ export async function runCpuProfile(
   }
   nodeArgs.push("--import", pathToFileURL(preloadPath).href, entryPath, ...(options.entryArgs ?? []));
 
-  const env = {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     ...options.env,
     PERF_SKILL_DURATION_MS: String(durationMs),

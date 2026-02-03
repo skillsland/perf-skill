@@ -127,7 +127,7 @@ function parseProfileData(profile: Profile): ParsedProfile {
   const callPaths = new Map<string, number>();
   
   // Build lookup tables
-  const stringTable = profile.stringTable || [];
+  const stringTable = profile.stringTable?.strings ?? [];
   const getString = (idx: number | bigint): string => {
     const i = typeof idx === "bigint" ? Number(idx) : idx;
     return stringTable[i] || "";
@@ -447,6 +447,9 @@ function toDiffHotspot(
   baseTotalValue: number,
   currentTotalValue: number
 ): DiffHotspot {
+  if (diff.changeType === "unchanged") {
+    throw new Error("Invariant violation: cannot convert unchanged diff to DiffHotspot.");
+  }
   return {
     rank,
     function: diff.name,
