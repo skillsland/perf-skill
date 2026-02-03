@@ -101,7 +101,7 @@ curl -X POST http://localhost:3000/v1/pprof/diff \
 | `--llm-model`      | LLM model name                                   | `gpt-4o`   |
 | `--service`        | Service name for context                         | -          |
 | `--scenario`       | Scenario description                             | -          |
-| `--redact`         | Redact sensitive information                     | `true`     |
+| `--redact/--no-redact` | Redact sensitive information                | `true`     |
 
 ### `perf-skill diff <base.pb.gz> <current.pb.gz>`
 
@@ -111,6 +111,7 @@ curl -X POST http://localhost:3000/v1/pprof/diff \
 | `-n, --normalize`    | `none`, `scale-to-base-total`, `per-second`      | `scale-to-base-total` |
 | `--max-regressions`  | Maximum regressions to show                      | `10`                  |
 | `--max-improvements` | Maximum improvements to show                     | `5`                   |
+| `--max-decompressed-bytes` | Maximum decompressed profile size (bytes)  | -                     |
 
 ## Output Formats
 
@@ -222,6 +223,7 @@ writeFileSync("heap.pb.gz", gzipSync(heapProfile.encode()));
 const result = await analyze("large-profile.pb.gz", {
   limits: {
     maxProfileBytes: 100 * 1024 * 1024, // 100MB
+    maxDecompressedBytes: 200 * 1024 * 1024, // 200MB uncompressed
     maxMarkdownChars: 500_000, // 500k chars
     maxSourceLinesPerFile: 100, // lines per snippet
     timeoutMs: 120_000, // 2 minutes

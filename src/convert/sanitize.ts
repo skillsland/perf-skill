@@ -145,12 +145,17 @@ export function truncateContent(content: string, maxChars: number): string {
     return content;
   }
   
+  const note =
+    "\n\n---\n\n> **Note:** Report truncated to stay within size limits. " +
+    "Use `--format=summary` or reduce `--max-hotspots` for smaller output.\n";
+  const budget = Math.max(maxChars - note.length, 0);
+
   // Try to truncate at a section boundary
   const sections = content.split(/\n(?=##?\s)/);
   let result = "";
   
   for (const section of sections) {
-    if (result.length + section.length + 100 > maxChars) {
+    if (result.length + section.length > budget) {
       break;
     }
     result += section + "\n";
@@ -158,11 +163,10 @@ export function truncateContent(content: string, maxChars: number): string {
   
   // If we couldn't get any sections, just hard truncate
   if (!result) {
-    result = content.slice(0, maxChars - 100);
+    result = content.slice(0, budget);
   }
   
-  result += "\n\n---\n\n> **Note:** Report truncated to stay within size limits. ";
-  result += "Use `--format=summary` or reduce `--max-hotspots` for smaller output.\n";
+  result += note;
   
   return result;
 }

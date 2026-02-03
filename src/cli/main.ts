@@ -6,9 +6,17 @@
 import { Command } from "commander";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { analyze, diff, type AnalyzeOptions, type DiffOptions } from "../index.js";
+import { analyze, diff, type DiffOptions } from "../index.js";
 import { setLogLevel } from "../utils/logger.js";
 import { validateProfileExtension } from "../utils/limits.js";
+import {
+  buildAnalyzeOptions,
+  buildConvertOptions,
+  buildDiffOptions,
+  type AnalyzeCommandOptions,
+  type ConvertCommandOptions,
+  type DiffCommandOptions,
+} from "./options.js";
 
 const program = new Command();
 
@@ -35,7 +43,7 @@ program
   .option("--service <name>", "Service name for context")
   .option("--scenario <desc>", "Scenario description")
   .option("--slo <target>", "Target SLO")
-  .option("--redact", "Redact sensitive information", true)
+  .option("--no-redact", "Disable redaction of sensitive information")
   .option("-v, --verbose", "Enable verbose logging")
   .action(async (profilePath, opts) => {
     if (opts.verbose) {
@@ -46,20 +54,7 @@ program
       const resolvedPath = resolve(profilePath);
       validateProfileExtension(resolvedPath);
 
-      const options: AnalyzeOptions = {
-        format: opts.format as AnalyzeOptions["format"],
-        profileType: opts.type as AnalyzeOptions["profileType"],
-        maxHotspots: parseInt(opts.maxHotspots, 10),
-        sourceDir: opts.sourceDir,
-        includeSource: opts.source,
-        mode: opts.mode as AnalyzeOptions["mode"],
-        redact: opts.redact,
-        context: {
-          serviceName: opts.service,
-          scenario: opts.scenario,
-          targetSLO: opts.slo,
-        },
-      };
+      const options = buildAnalyzeOptions(opts as AnalyzeCommandOptions);
 
       // Configure LLM if provided
       if (opts.llmProvider || opts.llmModel) {
@@ -121,6 +116,7 @@ program
   .option("-n, --normalize <mode>", "Normalize mode: none, scale-to-base-total, per-second", "scale-to-base-total")
   .option("--max-regressions <n>", "Maximum regressions to show", "10")
   .option("--max-improvements <n>", "Maximum improvements to show", "5")
+  .option("--max-decompressed-bytes <n>", "Maximum decompressed profile size in bytes")
   .option("-m, --mode <mode>", "Mode: convert-only, analyze", "convert-only")
   .option("--llm-provider <provider>", "LLM provider for analysis")
   .option("--llm-model <model>", "LLM model name")
@@ -138,12 +134,8 @@ program
       validateProfileExtension(resolvedBase);
       validateProfileExtension(resolvedCurrent);
 
-      const options: DiffOptions & { mode?: "convert-only" | "analyze" } = {
-        format: opts.format as DiffOptions["format"],
-        normalize: opts.normalize as DiffOptions["normalize"],
-        maxRegressions: parseInt(opts.maxRegressions, 10),
-        maxImprovements: parseInt(opts.maxImprovements, 10),
-      };
+      const options: DiffOptions & { mode?: "convert-only" | "analyze" } =
+        buildDiffOptions(opts as DiffCommandOptions);
 
       console.log(`Comparing ${basePath} vs ${currentPath}...`);
       const result = await diff(resolvedBase, resolvedCurrent, options);
@@ -192,7 +184,7 @@ program
   .option("-s, --source-dir <path>", "Source directory for code context")
   .option("--no-source", "Disable source code inclusion")
   .option("--max-hotspots <n>", "Maximum hotspots to show", "10")
-  .option("--redact", "Redact sensitive information", true)
+  .option("--no-redact", "Disable redaction of sensitive information")
   .option("-v, --verbose", "Enable verbose logging")
   .action(async (profilePath, opts) => {
     if (opts.verbose) {
@@ -203,15 +195,7 @@ program
       const resolvedPath = resolve(profilePath);
       validateProfileExtension(resolvedPath);
 
-      const options: AnalyzeOptions = {
-        format: opts.format as AnalyzeOptions["format"],
-        profileType: opts.type as AnalyzeOptions["profileType"],
-        maxHotspots: parseInt(opts.maxHotspots, 10),
-        sourceDir: opts.sourceDir,
-        includeSource: opts.source,
-        mode: "convert-only",
-        redact: opts.redact,
-      };
+      const options = buildConvertOptions(opts as ConvertCommandOptions);
 
       console.log(`Converting ${profilePath}...`);
       const result = await analyze(resolvedPath, options);

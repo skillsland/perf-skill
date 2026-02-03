@@ -46,9 +46,10 @@ export async function safeRemove(path: string): Promise<void> {
 export async function withTempFile<T>(
   data: Uint8Array | Buffer,
   fn: (path: string) => Promise<T>,
-  prefix: string = "pprof"
+  prefix: string = "pprof",
+  ext: string = ".pb.gz"
 ): Promise<T> {
-  const tempPath = await writeToTemp(data, prefix);
+  const tempPath = await writeToTemp(data, prefix, ext);
   try {
     return await fn(tempPath);
   } finally {
@@ -59,19 +60,25 @@ export async function withTempFile<T>(
 /**
  * Read and decompress a gzipped file
  */
-export async function readGzipFile(path: string): Promise<Buffer> {
+export async function readGzipFile(
+  path: string,
+  maxOutputBytes?: number
+): Promise<Buffer> {
   const data = await readFile(path);
-  if (isGzip(data)) {
-    return gunzipSync(data);
-  }
-  return data;
+  return decompressIfNeeded(data, maxOutputBytes);
 }
 
 /**
  * Decompress data if gzipped
  */
-export function decompressIfNeeded(data: Uint8Array | Buffer): Buffer {
+export function decompressIfNeeded(
+  data: Uint8Array | Buffer,
+  maxOutputBytes?: number
+): Buffer {
   if (isGzip(data)) {
+    if (maxOutputBytes) {
+      return gunzipSync(data, { maxOutputLength: maxOutputBytes });
+    }
     return gunzipSync(data);
   }
   return Buffer.from(data);
@@ -82,6 +89,13 @@ export function decompressIfNeeded(data: Uint8Array | Buffer): Buffer {
  */
 export function compressGzip(data: Uint8Array | Buffer): Buffer {
   return gzipSync(data);
+}
+
+/**
+ * Pick a profile file extension based on compression
+ */
+export function getProfileExtension(data: Uint8Array | Buffer): ".pb.gz" | ".pb" {
+  return isGzip(data) ? ".pb.gz" : ".pb";
 }
 
 /**

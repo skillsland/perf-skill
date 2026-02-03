@@ -7,6 +7,7 @@ import type { ResourceLimits } from "../types.js";
 // Default limits
 export const DEFAULT_LIMITS: Required<ResourceLimits> = {
   maxProfileBytes: 50 * 1024 * 1024, // 50MB compressed
+  maxDecompressedBytes: 200 * 1024 * 1024, // 200MB uncompressed
   maxMarkdownChars: 200_000, // 200k chars
   maxSourceLinesPerFile: 50, // lines per source snippet
   timeoutMs: 60_000, // 60 seconds

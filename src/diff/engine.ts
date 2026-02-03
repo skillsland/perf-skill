@@ -7,9 +7,16 @@
 
 import { Profile } from "pprof-format";
 import { readFile } from "node:fs/promises";
-import { gunzipSync } from "node:zlib";
-import { isGzip } from "../utils/limits.js";
-import type { DiffOptions, NormalizeMode, ProfileMeta, DiffHotspot, DiffCallPath } from "../types.js";
+import { resolveLimits } from "../utils/limits.js";
+import { decompressIfNeeded } from "../utils/fs.js";
+import type {
+  DiffOptions,
+  NormalizeMode,
+  ProfileMeta,
+  DiffHotspot,
+  DiffCallPath,
+  ResourceLimits,
+} from "../types.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -90,9 +97,11 @@ export interface DiffData {
  * Parse a pprof profile from file path or buffer
  */
 export async function parseProfile(
-  input: string | Buffer | Uint8Array
+  input: string | Buffer | Uint8Array,
+  limits?: ResourceLimits
 ): Promise<ParsedProfile> {
   let data: Buffer;
+  const resolvedLimits = resolveLimits(limits);
   
   if (typeof input === "string") {
     data = await readFile(input);
@@ -100,10 +109,8 @@ export async function parseProfile(
     data = Buffer.from(input);
   }
   
-  // Decompress if gzipped
-  if (isGzip(data)) {
-    data = gunzipSync(data);
-  }
+  // Decompress if gzipped (bounded to prevent zip bombs)
+  data = decompressIfNeeded(data, resolvedLimits.maxDecompressedBytes);
   
   // Decode protobuf
   const profile = Profile.decode(data);
@@ -519,8 +526,8 @@ export async function diffProfiles(
   logger.info("Parsing profiles for diff");
   
   const [baseProfile, currentProfile] = await Promise.all([
-    parseProfile(basePath),
-    parseProfile(currentPath),
+    parseProfile(basePath, options.limits),
+    parseProfile(currentPath, options.limits),
   ]);
   
   const parseTime = performance.now() - startTime;

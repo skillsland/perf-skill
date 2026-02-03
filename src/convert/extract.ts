@@ -11,37 +11,38 @@ import type { Hotspot, ProfileMeta } from "../types.js";
  */
 export function extractProfileMeta(markdown: string): ProfileMeta | undefined {
   const meta: ProfileMeta = {};
+  const normalized = markdown.replace(/\*\*/g, "");
   
   // Try to extract profile type from header
   // e.g., "# PPROF Analysis: CPU" or "# PPROF Analysis: Heap"
-  const typeMatch = markdown.match(/# PPROF Analysis:\s*(CPU|Heap)/i);
+  const typeMatch = normalized.match(/# PPROF Analysis:\s*(CPU|Heap)/i);
   if (typeMatch) {
     meta.type = typeMatch[1].toLowerCase() as "cpu" | "heap";
   }
   
   // Extract duration
   // e.g., "**Duration:** 30s" or "Duration: 30.5s"
-  const durationMatch = markdown.match(/\*?\*?Duration\*?\*?:\s*([\d.]+)\s*s/i);
+  const durationMatch = normalized.match(/Duration:\s*([\d.]+)\s*s/i);
   if (durationMatch) {
     meta.durationSec = parseFloat(durationMatch[1]);
   }
   
   // Extract samples
   // e.g., "**Samples:** 45,231" or "Samples: 45231"
-  const samplesMatch = markdown.match(/\*?\*?Samples\*?\*?:\s*([\d,]+)/i);
+  const samplesMatch = normalized.match(/Samples:\s*([\d,]+)/i);
   if (samplesMatch) {
     meta.samples = parseInt(samplesMatch[1].replace(/,/g, ""), 10);
   }
   
   // Extract sample type
   // e.g., "Sample Type: cpu" or "Type: alloc_space"
-  const sampleTypeMatch = markdown.match(/Sample Type:\s*(\w+)/i);
+  const sampleTypeMatch = normalized.match(/Sample Type:\s*(\w+)/i);
   if (sampleTypeMatch) {
     meta.sampleType = sampleTypeMatch[1];
   }
   
   // Extract unit
-  const unitMatch = markdown.match(/Unit:\s*(\w+)/i);
+  const unitMatch = normalized.match(/Unit:\s*(\w+)/i);
   if (unitMatch) {
     meta.unit = unitMatch[1];
   }
@@ -200,7 +201,8 @@ export function extractCallPath(
   
   if (!section) return undefined;
   
-  const pathMatch = section.match(/\*?\*?Call path\*?\*?:\s*([^\n]+)/i);
+  const normalized = section.replace(/\*\*/g, "");
+  const pathMatch = normalized.match(/Call path:\s*([^\n]+)/i);
   if (!pathMatch) return undefined;
   
   // Parse path (split by → or ->)
@@ -227,7 +229,8 @@ export function extractCallers(
   
   if (!section) return undefined;
   
-  const callersMatch = section.match(/\*?\*?Callers?\*?\*?:\s*([^\n]+)/i);
+  const normalized = section.replace(/\*\*/g, "");
+  const callersMatch = normalized.match(/Callers?:\s*([^\n]+)/i);
   if (!callersMatch) return undefined;
   
   const callers = callersMatch[1]
@@ -253,7 +256,8 @@ export function extractCallees(
   
   if (!section) return undefined;
   
-  const calleesMatch = section.match(/\*?\*?Callees?\*?\*?:\s*([^\n]+)/i);
+  const normalized = section.replace(/\*\*/g, "");
+  const calleesMatch = normalized.match(/Callees?:\s*([^\n]+)/i);
   if (!calleesMatch) return undefined;
   
   const callees = calleesMatch[1]

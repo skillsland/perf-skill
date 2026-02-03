@@ -50,6 +50,8 @@ export interface AnalysisContext {
 export interface ResourceLimits {
   /** Maximum profile file size in bytes (compressed) */
   maxProfileBytes?: number;
+  /** Maximum decompressed profile size in bytes */
+  maxDecompressedBytes?: number;
   /** Maximum markdown output characters */
   maxMarkdownChars?: number;
   /** Maximum source lines per file */
@@ -88,6 +90,8 @@ export interface DiffOptions extends ConvertOptions {
   minPercentDelta?: number;
   /** Disable inline frame expansion */
   noInlines?: boolean;
+  /** Resource limits */
+  limits?: ResourceLimits;
 }
 
 // Hotspot from profile analysis

@@ -28,6 +28,7 @@ export {
   readGzipFile,
   decompressIfNeeded,
   compressGzip,
+  getProfileExtension,
   ensureDir,
   base64ToBuffer,
   bufferToBase64,

@@ -4,7 +4,7 @@
 
 import { convert as pprofToMd } from "pprof-to-md";
 import type { ConvertOptions, ProfileMeta } from "../types.js";
-import { withTempFile } from "../utils/fs.js";
+import { getProfileExtension, withTempFile } from "../utils/fs.js";
 import { logger } from "../utils/logger.js";
 import { checkSizeLimit, resolveLimits } from "../utils/limits.js";
 import { sanitizeMarkdown, type SanitizeOptions } from "./sanitize.js";
@@ -52,6 +52,8 @@ export async function convertProfileToMarkdown(
     profileType: options.profileType ?? "auto",
   });
   
+  const tempExt = getProfileExtension(profileBytes);
+
   // Convert using pprof-to-md (requires file path)
   const rawMarkdown = await withTempFile(profileBytes, async (tempPath) => {
     // pprof-to-md convert function
@@ -65,7 +67,7 @@ export async function convertProfileToMarkdown(
       })
     );
     return md as string;
-  });
+  }, "pprof", tempExt);
   
   logger.debug("Raw markdown generated", { chars: rawMarkdown.length });
   
@@ -91,7 +93,7 @@ export async function convertProfileToMarkdown(
         })
       );
       return md as string;
-    });
+    }, "pprof", tempExt);
     usedFormat = "summary";
   }
   

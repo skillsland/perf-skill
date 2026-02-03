@@ -8,6 +8,7 @@ import { analyze, diff } from "../index.js";
 import type { AnalyzeOptions, DiffOptions, AnalyzeResult, DiffResult, ApiResponse } from "../types.js";
 import { logger } from "../utils/logger.js";
 import { checkSizeLimit, DEFAULT_LIMITS } from "../utils/limits.js";
+import { cleanupUploadedFiles, parseOptionsField } from "./utils.js";
 
 export interface ServerOptions {
   port?: number;
@@ -25,6 +26,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
 
   // Register multipart plugin for file uploads
   await server.register(multipart, {
+    attachFieldsToBody: "keyValues",
     limits: {
       fileSize: options.maxFileSize ?? DEFAULT_LIMITS.maxProfileBytes,
     },
@@ -50,7 +52,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
 
   // Analyze endpoint
   server.post<{
-    Body: { options?: AnalyzeOptions };
+    Body: { options?: string | AnalyzeOptions };
   }>("/v1/pprof/analyze", async (request, reply) => {
     const startTime = performance.now();
 
@@ -70,8 +72,18 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
       const profileBuffer = await data.toBuffer();
       checkSizeLimit(profileBuffer, DEFAULT_LIMITS.maxProfileBytes, "Profile");
 
-      // Parse options from form field or use defaults
-      const options: AnalyzeOptions = request.body?.options || {};
+      let options: AnalyzeOptions;
+      try {
+        options = parseOptionsField<AnalyzeOptions>(request.body?.options);
+      } catch (error) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: "INVALID_OPTIONS",
+            message: error instanceof Error ? error.message : "Invalid options",
+          },
+        } satisfies ApiResponse<never>);
+      }
       
       // Default to not including source in server mode for security
       if (options.includeSource === undefined) {
@@ -114,7 +126,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
 
   // Convert-only endpoint (no LLM)
   server.post<{
-    Body: { options?: AnalyzeOptions };
+    Body: { options?: string | AnalyzeOptions };
   }>("/v1/pprof/convert", async (request, reply) => {
     try {
       const data = await request.file();
@@ -131,8 +143,21 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
       const profileBuffer = await data.toBuffer();
       checkSizeLimit(profileBuffer, DEFAULT_LIMITS.maxProfileBytes, "Profile");
 
+      let parsedOptions: AnalyzeOptions;
+      try {
+        parsedOptions = parseOptionsField<AnalyzeOptions>(request.body?.options);
+      } catch (error) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: "INVALID_OPTIONS",
+            message: error instanceof Error ? error.message : "Invalid options",
+          },
+        } satisfies ApiResponse<never>);
+      }
+
       const options: AnalyzeOptions = {
-        ...request.body?.options,
+        ...parsedOptions,
         mode: "convert-only",
         includeSource: false,
       };
@@ -156,13 +181,14 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
 
   // Diff endpoint
   server.post<{
-    Body: { options?: DiffOptions };
+    Body: { options?: string | DiffOptions };
   }>("/v1/pprof/diff", async (request, reply) => {
     const startTime = performance.now();
+    let files: Awaited<ReturnType<typeof request.saveRequestFiles>> | undefined;
 
     try {
       // Expect two files: base and current
-      const files = await request.saveRequestFiles();
+      files = await request.saveRequestFiles();
       
       if (files.length < 2) {
         return reply.status(400).send({
@@ -184,7 +210,18 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
       checkSizeLimit(baseBuffer, DEFAULT_LIMITS.maxProfileBytes, "Base profile");
       checkSizeLimit(currentBuffer, DEFAULT_LIMITS.maxProfileBytes, "Current profile");
 
-      const options: DiffOptions = request.body?.options || {};
+      let options: DiffOptions;
+      try {
+        options = parseOptionsField<DiffOptions>(request.body?.options);
+      } catch (error) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: "INVALID_OPTIONS",
+            message: error instanceof Error ? error.message : "Invalid options",
+          },
+        } satisfies ApiResponse<never>);
+      }
 
       logger.info("Diff request received", {
         baseSize: baseBuffer.length,
@@ -215,6 +252,10 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
           message: error instanceof Error ? error.message : "Diff analysis failed",
         },
       } satisfies ApiResponse<never>);
+    } finally {
+      if (files) {
+        await cleanupUploadedFiles(files);
+      }
     }
   });
 
