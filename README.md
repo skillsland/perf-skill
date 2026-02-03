@@ -1,6 +1,6 @@
 # perf-skill
 
-AI-powered pprof profile analysis. Convert `.pb.gz` profiles to LLM-friendly Markdown and generate actionable performance recommendations.
+AI‑assisted pprof toolkit for CPU/heap profiles: convert .pb.gz/.pprof to structured Markdown, compare profiles for regressions, and optionally generate evidence‑backed recommendations.
 
 ## Features
 
