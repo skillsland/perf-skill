@@ -1,5 +1,9 @@
 # perf-skill
 
+![Node CI](https://github.com/skillsland/perf-skill/workflows/Node%20CI/badge.svg)
+[![npm version](https://badge.fury.io/js/perf-skill.svg)](http://badge.fury.io/js/perf-skill)
+![license](https://img.shields.io/npm/l/perf-skill)
+
 AI‑assisted pprof toolkit for CPU/heap profiles: convert .pb.gz/.pprof to structured Markdown, compare profiles for regressions, and optionally generate evidence‑backed recommendations.
 
 ## Features

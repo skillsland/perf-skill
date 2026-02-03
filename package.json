@@ -1,6 +1,6 @@
 {
   "name": "perf-skill",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI Skill for pprof profile analysis - convert .pb.gz to Markdown and generate structured performance recommendations",
   "type": "module",
   "main": "dist/index.js",
@@ -41,6 +41,10 @@
     "analysis"
   ],
   "author": "unadlib",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skillsland/perf-skill.git"
+  },
   "license": "MIT",
   "dependencies": {
     "@datadog/pprof": "^5.13.2",
