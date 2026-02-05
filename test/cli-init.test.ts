@@ -95,9 +95,12 @@ describe("runInit", () => {
     const tempDir = await mkdtemp(join(tmpdir(), "perf-skill-init-"));
     try {
       const result = await runInit({ target: tempDir });
-      const contents = await readFile(result.destFile, "utf-8");
+      assert.ok(result.success, "runInit should succeed");
+      assert.strictEqual(result.targets.length, 1, "should have one target");
+      const destFile = result.targets[0].destFile;
+      const contents = await readFile(destFile, "utf-8");
       assert.ok(contents.includes("name: perf-skill"));
-      await stat(result.destFile);
+      await stat(destFile);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
