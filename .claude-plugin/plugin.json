@@ -1,0 +1,40 @@
+{
+  "$schema": "https://claude.ai/plugins/v1/plugin.schema.json",
+  "name": "perf-skill",
+  "version": "0.3.0",
+  "description": "Performance profile evidence extractor - Convert pprof CPU and heap profiles to structured Markdown and JSON for AI-powered performance analysis",
+  "author": "skillsland",
+  "license": "MIT",
+  "homepage": "https://github.com/skillsland/perf-skill",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skillsland/perf-skill.git"
+  },
+  "keywords": [
+    "performance",
+    "profiling",
+    "pprof",
+    "cpu",
+    "heap",
+    "memory",
+    "optimization",
+    "analysis",
+    "node.js",
+    "evidence"
+  ],
+  "skills": [
+    {
+      "name": "perf-skill",
+      "path": ".claude/skills/perf-skill/SKILL.md",
+      "description": "Analyze pprof CPU and heap profiles to identify performance bottlenecks"
+    }
+  ],
+  "install": {
+    "type": "npm",
+    "package": "perf-skill",
+    "postInstall": "npx perf-skill init --ai claude"
+  },
+  "compatibility": {
+    "claude": ">=1.0.0"
+  }
+}

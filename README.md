@@ -34,6 +34,26 @@ Or run directly with npx:
 npx perf-skill analyze profile.pb.gz
 ```
 
+### AI Platform Integration
+
+Install perf-skill as a skill for your preferred AI coding assistant:
+
+```bash
+# Claude Code / Claude Desktop
+npx perf-skill init --ai claude
+
+# Cursor
+npx perf-skill init --ai cursor
+
+# GitHub Copilot
+npx perf-skill init --ai copilot
+
+# All supported platforms at once
+npx perf-skill init --ai all
+```
+
+See [Supported Platforms](#supported-platforms) for the full list.
+
 ## Quick Start
 
 ### CLI Usage
@@ -63,9 +83,10 @@ perf-skill diff base.pb.gz current.pb.gz -o diff.md
 # Start HTTP server (all endpoints deterministic by default)
 perf-skill server --port 3000
 
-# Install SKILL.md for Cursor (user or project)
-perf-skill init --cursor
-perf-skill init --cursor --scope project
+# Install skill for your AI platform
+perf-skill init --ai claude
+perf-skill init --ai cursor --scope project
+perf-skill init --ai all  # Install to all supported platforms
 
 # Install SKILL.md to a custom directory
 perf-skill init ./skills/perf-skill
@@ -207,14 +228,49 @@ When `--heap` is enabled and `--output` is omitted, `perf-skill` writes `cpu.md`
 
 ### `perf-skill init [target]`
 
-Install the bundled `SKILL.md` to a target directory or Cursor skills folder.
+Install the `SKILL.md` to a target directory or AI platform.
 
-| Option         | Description                            | Default |
-| -------------- | -------------------------------------- | ------- |
-| `-c, --cursor` | Install into Cursor skills folder      | `false` |
-| `--scope`      | Cursor scope: `user` or `project`      | `user`  |
-| `-f, --force`  | Overwrite existing `SKILL.md`          | `false` |
-| `--dry-run`    | Show destination without writing files | `false` |
+| Option         | Description                            | Default   |
+| -------------- | -------------------------------------- | --------- |
+| `-a, --ai`     | Target AI platform (see below)         | -         |
+| `-c, --cursor` | Install into Cursor (legacy)           | `false`   |
+| `--scope`      | Installation scope: `user` or `project`| `project` |
+| `-f, --force`  | Overwrite existing `SKILL.md`          | `false`   |
+| `--dry-run`    | Show destination without writing files | `false`   |
+| `--offline`    | Use bundled assets only                | `false`   |
+
+#### Supported Platforms
+
+| Platform    | Command                         | Install Location                        |
+| ----------- | ------------------------------- | --------------------------------------- |
+| Claude      | `--ai claude`                   | `.claude/skills/perf-skill/SKILL.md`    |
+| Cursor      | `--ai cursor`                   | `.cursor/skills/perf-skill/SKILL.md`    |
+| Windsurf    | `--ai windsurf`                 | `.windsurf/skills/perf-skill/SKILL.md`  |
+| Copilot     | `--ai copilot`                  | `.github/copilot/perf-skill.md`         |
+| Kiro        | `--ai kiro`                     | `.kiro/skills/perf-skill/SKILL.md`      |
+| Codex       | `--ai codex`                    | `.codex/skills/perf-skill/SKILL.md`     |
+| Qoder       | `--ai qoder`                    | `.qodo/skills/perf-skill/SKILL.md`      |
+| Roo Code    | `--ai roocode`                  | `.roo/skills/perf-skill/SKILL.md`       |
+| Gemini      | `--ai gemini`                   | `.gemini/skills/perf-skill/SKILL.md`    |
+| Trae        | `--ai trae`                     | `.trae/skills/perf-skill/SKILL.md`      |
+| OpenCode    | `--ai opencode`                 | `.opencode/skills/perf-skill/SKILL.md`  |
+| Continue    | `--ai continue`                 | `.continue/skills/perf-skill/SKILL.md`  |
+| CodeBuddy   | `--ai codebuddy`                | `.codebuddy/skills/perf-skill/SKILL.md` |
+| **All**     | `--ai all`                      | Installs to all platforms               |
+
+```bash
+# Install for Claude
+npx perf-skill init --ai claude
+
+# Install for Cursor (project scope)
+npx perf-skill init --ai cursor --scope project
+
+# Install for all supported platforms
+npx perf-skill init --ai all
+
+# Preview installation without writing
+npx perf-skill init --ai cursor --dry-run
+```
 
 ## Output Formats
 

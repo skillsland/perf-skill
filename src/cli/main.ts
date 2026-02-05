@@ -10,7 +10,7 @@ import { analyze, diff, type DiffOptions } from "../index.js";
 import { parseDurationInput, runCpuProfile } from "../profile/runner.js";
 import { setLogLevel } from "../utils/logger.js";
 import { validateProfileExtension } from "../utils/limits.js";
-import { runInit, type CursorScope } from "./init.js";
+import { runInit, type CursorScope, AI_PLATFORMS, type AIPlatform } from "./init.js";
 import {
   buildAnalyzeOptions,
   buildConvertOptions,
@@ -128,28 +128,64 @@ async function executeAnalyze(profilePath: string, opts: AnalyzeCliOptions): Pro
   }
 }
 
+function parsePlatform(platform?: string): AIPlatform | undefined {
+  if (!platform) return undefined;
+  if (!AI_PLATFORMS.includes(platform as AIPlatform)) {
+    throw new Error(`Invalid platform: ${platform}. Valid: ${AI_PLATFORMS.join(", ")}`);
+  }
+  return platform as AIPlatform;
+}
+
 // Init command (install SKILL.md)
 program
   .command("init")
-  .description("Install SKILL.md to a target directory")
+  .description("Install SKILL.md to a target directory or AI platform")
   .argument("[target]", "Target directory or file path")
-  .option("-c, --cursor", "Install into Cursor skills folder")
-  .option("--scope <scope>", "Cursor scope: user or project")
+  .option("-a, --ai <platform>", `AI platform: ${AI_PLATFORMS.join(", ")}`)
+  .option("-c, --cursor", "Install into Cursor skills folder (legacy, use --ai cursor)")
+  .option("--scope <scope>", "Installation scope: user or project", "project")
   .option("-f, --force", "Overwrite existing SKILL.md")
   .option("--dry-run", "Show destination without writing files")
+  .option("--offline", "Skip any network operations (use bundled assets only)")
   .action(async (target, opts) => {
     try {
       const scope = parseCursorScope(opts.scope);
+      const platform = parsePlatform(opts.ai);
+
       const result = await runInit({
         target,
         cursor: opts.cursor,
+        platform,
         scope,
         force: opts.force,
         dryRun: opts.dryRun,
+        offline: opts.offline,
       });
 
+      if (!result.success) {
+        for (const err of result.errors) {
+          console.error(`Error (${err.platform}): ${err.error}`);
+        }
+        process.exit(1);
+      }
+
       const prefix = opts.dryRun ? "Would install skill to" : "Installed skill to";
-      console.log(`${prefix} ${result.destFile}`);
+      
+      if (result.targets.length === 1) {
+        console.log(`${prefix} ${result.targets[0].destFile}`);
+      } else {
+        console.log(`${prefix}:`);
+        for (const t of result.targets) {
+          console.log(`  - [${t.platform}] ${t.destFile}`);
+        }
+      }
+
+      if (result.errors.length > 0) {
+        console.log("\nWarnings:");
+        for (const err of result.errors) {
+          console.log(`  - [${err.platform}] ${err.error}`);
+        }
+      }
     } catch (error) {
       console.error("Error:", error instanceof Error ? error.message : error);
       process.exit(1);

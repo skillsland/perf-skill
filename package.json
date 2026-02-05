@@ -77,6 +77,8 @@
   "files": [
     "dist",
     "SKILL.md",
-    "README.md"
+    "README.md",
+    "CLAUDE.md",
+    ".claude-plugin"
   ]
 }

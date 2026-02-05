@@ -1,27 +1,44 @@
 /**
- * CLI init command helpers - install SKILL.md into a target directory
+ * CLI init command helpers - install SKILL.md into target directories for multiple AI platforms
  */
 
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  type AIPlatform,
+  AI_PLATFORMS,
+  PLATFORM_CONFIGS,
+  getAllPlatforms,
+  isPlatformValid,
+} from "./platforms.js";
+import { renderSkillForPlatform, getDestinationPath } from "./template.js";
 
 export type CursorScope = "user" | "project";
 
 export interface InitOptions {
   target?: string;
   cursor?: boolean;
+  platform?: AIPlatform;
   scope?: CursorScope;
   force?: boolean;
   dryRun?: boolean;
+  offline?: boolean;
 }
 
 export interface InstallTarget {
-  layout: "cursor" | "flat" | "file";
+  platform: string;
+  layout: "cursor" | "flat" | "file" | "platform";
   rootDir: string;
   destDir: string;
   destFile: string;
+}
+
+export interface InitResult {
+  success: boolean;
+  targets: InstallTarget[];
+  errors: Array<{ platform: string; error: string }>;
 }
 
 function normalizeFrontmatterValue(value: string): string {
@@ -87,6 +104,7 @@ export function resolveInstallTarget(options: {
     if (target && isMarkdownFile(target)) {
       const destDir = dirname(target);
       return {
+        platform: "cursor",
         layout: "file",
         rootDir: destDir,
         destDir,
@@ -101,6 +119,7 @@ export function resolveInstallTarget(options: {
       : join(root, options.name);
 
     return {
+      platform: "cursor",
       layout: "cursor",
       rootDir: root,
       destDir,
@@ -115,6 +134,7 @@ export function resolveInstallTarget(options: {
   if (isMarkdownFile(target)) {
     const destDir = dirname(target);
     return {
+      platform: "custom",
       layout: "file",
       rootDir: destDir,
       destDir,
@@ -123,6 +143,7 @@ export function resolveInstallTarget(options: {
   }
 
   return {
+    platform: "custom",
     layout: "flat",
     rootDir: target,
     destDir: target,
@@ -151,36 +172,155 @@ async function loadSkillSource(): Promise<{ markdown: string; name: string; path
   return { markdown, name, path: skillPath };
 }
 
-export async function runInit(options: InitOptions): Promise<InstallTarget> {
-  const { markdown, name } = await loadSkillSource();
-
-  if (options.scope && !options.cursor) {
-    throw new Error("--scope is only supported with --cursor.");
+/**
+ * Install skill for a single platform
+ */
+async function installForPlatform(
+  platform: Exclude<AIPlatform, "all">,
+  options: {
+    scope: CursorScope;
+    force: boolean;
+    dryRun: boolean;
+    cwd: string;
+    homeDir: string;
   }
+): Promise<InstallTarget> {
+  const config = PLATFORM_CONFIGS[platform];
+  const { destDir, destFile } = getDestinationPath(
+    config,
+    options.cwd,
+    options.scope,
+    options.homeDir
+  );
+
+  const target: InstallTarget = {
+    platform,
+    layout: "platform",
+    rootDir: resolve(options.scope === "project" ? options.cwd : options.homeDir, config.folderStructure.root),
+    destDir,
+    destFile,
+  };
+
+  if (options.dryRun) {
+    return target;
+  }
+
+  // Check for reserved directories
+  if (isReservedCursorDir(destDir) || isReservedCursorDir(destFile)) {
+    throw new Error("Refusing to install into Cursor's reserved skills-cursor directory.");
+  }
+
+  // Create directory
+  await mkdir(destDir, { recursive: true });
+
+  // Check if file exists
+  if (!options.force && await fileExists(destFile)) {
+    throw new Error(`Skill already exists at ${destFile}. Use --force to overwrite.`);
+  }
+
+  // Render and write the skill file
+  const content = await renderSkillForPlatform(config);
+  await writeFile(destFile, content, "utf-8");
+
+  return target;
+}
+
+/**
+ * Run init command - supports multiple platforms
+ */
+export async function runInit(options: InitOptions): Promise<InitResult> {
+  const cwd = process.cwd();
+  const home = homedir();
+  const scope = options.scope ?? "project";
+  const force = options.force ?? false;
+  const dryRun = options.dryRun ?? false;
+
+  // Legacy --cursor flag support (maps to cursor platform)
+  if (options.cursor && !options.platform) {
+    options.platform = "cursor";
+  }
+
+  // If platform specified
+  if (options.platform) {
+    if (!isPlatformValid(options.platform)) {
+      return {
+        success: false,
+        targets: [],
+        errors: [{ platform: options.platform, error: `Invalid platform: ${options.platform}. Valid: ${AI_PLATFORMS.join(", ")}` }],
+      };
+    }
+
+    // Handle "all" platform
+    if (options.platform === "all") {
+      const platforms = getAllPlatforms();
+      const targets: InstallTarget[] = [];
+      const errors: Array<{ platform: string; error: string }> = [];
+
+      for (const platform of platforms) {
+        try {
+          const target = await installForPlatform(platform, { scope, force, dryRun, cwd, homeDir: home });
+          targets.push(target);
+        } catch (error) {
+          errors.push({
+            platform,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      return {
+        success: errors.length === 0,
+        targets,
+        errors,
+      };
+    }
+
+    // Single platform
+    try {
+      const target = await installForPlatform(options.platform, { scope, force, dryRun, cwd, homeDir: home });
+      return { success: true, targets: [target], errors: [] };
+    } catch (error) {
+      return {
+        success: false,
+        targets: [],
+        errors: [{ platform: options.platform, error: error instanceof Error ? error.message : String(error) }],
+      };
+    }
+  }
+
+  // Legacy: no platform specified, use target path or cursor flag
+  if (options.scope && !options.cursor && !options.platform) {
+    throw new Error("--scope is only supported with --cursor or --platform.");
+  }
+
+  const { markdown, name } = await loadSkillSource();
 
   const target = resolveInstallTarget({
     target: options.target,
     cursor: options.cursor,
     scope: options.scope,
     name,
-    cwd: process.cwd(),
-    homeDir: homedir(),
+    cwd,
+    homeDir: home,
   });
 
   if (isReservedCursorDir(target.destDir) || isReservedCursorDir(target.destFile)) {
     throw new Error("Refusing to install into Cursor's reserved skills-cursor directory.");
   }
 
-  if (options.dryRun) {
-    return target;
+  if (dryRun) {
+    return { success: true, targets: [target], errors: [] };
   }
 
   await mkdir(target.destDir, { recursive: true });
 
-  if (!options.force && await fileExists(target.destFile)) {
+  if (!force && await fileExists(target.destFile)) {
     throw new Error(`Skill already exists at ${target.destFile}. Use --force to overwrite.`);
   }
 
   await writeFile(target.destFile, markdown, "utf-8");
-  return target;
+  return { success: true, targets: [target], errors: [] };
 }
+
+// Re-export types and constants for convenience
+export { AI_PLATFORMS, type AIPlatform } from "./platforms.js";
