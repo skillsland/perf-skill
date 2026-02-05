@@ -1,7 +1,7 @@
 ---
 name: perf-skill
 description: Convert pprof CPU and heap profiles to structured Markdown and JSON evidence. Use when the user has a .pb.gz profile file and wants to understand performance bottlenecks or compare profiles.
-argument-hint: [profile.pb.gz] [options]
+argument-hint: "[profile.pb.gz] [options]"
 allowed-tools: Bash(node *), Bash(npx *), Read, Glob
 ---
 
