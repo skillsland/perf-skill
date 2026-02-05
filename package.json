@@ -1,6 +1,6 @@
 {
   "name": "perf-skill",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "AI Skill for pprof profile analysis - convert .pb.gz to Markdown and generate structured performance recommendations",
   "type": "module",
   "main": "dist/index.js",
@@ -26,7 +26,13 @@
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
     "update-prompts": "node --import tsx scripts/update-prompt-fixtures.ts",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "commit": "yarn git-cz"
+  },
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
   },
   "keywords": [
     "pprof",
@@ -63,6 +69,7 @@
     "@types/node": "^25.2.0",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
+    "commitizen": "^4.3.1",
     "eslint": "^9.39.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
