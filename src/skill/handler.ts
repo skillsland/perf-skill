@@ -1,5 +1,9 @@
 /**
  * Skill handler - main entry point for AI agent integration
+ * 
+ * This skill produces deterministic, evidence-based output from pprof profiles.
+ * The host agent (Claude/Cursor/etc.) should use this evidence to generate
+ * optimization recommendations - no external LLM access is required by default.
  */
 
 import { analyze, diff } from "../index.js";
@@ -12,6 +16,22 @@ import type {
 } from "../types.js";
 import { loadProfile } from "../utils/fs.js";
 import { logger } from "../utils/logger.js";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Read version from package.json
+function getPackageVersion(): string {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const pkgPath = join(__dirname, "..", "..", "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    return pkg.version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
 
 /**
  * Skill input for profile analysis
@@ -154,15 +174,19 @@ export async function handleQuickTriage(
 
 /**
  * List available skill capabilities
+ * 
+ * All capabilities are deterministic and do not require external LLM access.
  */
 export function getSkillCapabilities(): {
   name: string;
   version: string;
   capabilities: string[];
+  description: string;
 } {
   return {
     name: "perf-skill",
-    version: "1.0.0",
+    version: getPackageVersion(),
+    description: "Deterministic performance profile evidence extractor",
     capabilities: [
       "analyze-profile",
       "diff-profiles",

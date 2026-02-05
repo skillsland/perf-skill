@@ -174,6 +174,8 @@ export interface AnalyzeResult {
     llmJson?: unknown;
     /** LLM parse errors if any */
     llmErrors?: string[];
+    /** LLM analysis status */
+    llmStatus?: "success" | "failed" | "skipped";
   };
   /** Processing metrics */
   metrics?: {

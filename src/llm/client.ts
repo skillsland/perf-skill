@@ -89,6 +89,16 @@ export function createLLMClient(config: LLMConfig): LLMClient {
 }
 
 /**
+ * Custom error class for LLM configuration issues
+ */
+export class LLMNotConfiguredError extends Error {
+  constructor(provider: string) {
+    super(`${provider} API key is required. Set the appropriate environment variable (OPENAI_API_KEY or ANTHROPIC_API_KEY) or provide apiKey in configuration.`);
+    this.name = "LLMNotConfiguredError";
+  }
+}
+
+/**
  * OpenAI-compatible client (works with OpenAI, Azure, and compatible APIs)
  */
 class OpenAICompatibleClient implements LLMClient {
@@ -103,9 +113,7 @@ class OpenAICompatibleClient implements LLMClient {
   constructor(config: LLMConfig) {
     const apiKey = config.apiKey || process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error(
-        "OpenAI API key is required (set apiKey or OPENAI_API_KEY env var)"
-      );
+      throw new LLMNotConfiguredError("OpenAI");
     }
 
     this.client = new OpenAI({
@@ -214,7 +222,7 @@ class AnthropicClient implements LLMClient {
   constructor(config: LLMConfig) {
     this.apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY || "";
     if (!this.apiKey) {
-      throw new Error("Anthropic API key is required");
+      throw new LLMNotConfiguredError("Anthropic");
     }
 
     this.baseUrl = config.baseUrl || "https://api.anthropic.com";

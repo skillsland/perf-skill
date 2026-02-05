@@ -22,10 +22,30 @@ import {
 
 const program = new Command();
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+
+// Read version from package.json
+function getPackageVersion(): string {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    // Look for package.json in parent directories
+    const pkgPath = join(__dirname, "..", "..", "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    return pkg.version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+const packageVersion = getPackageVersion();
+
 program
   .name("perf-skill")
-  .description("Analyze pprof profiles with AI-powered recommendations")
-  .version("1.0.0");
+  .description("Convert pprof profiles to structured Markdown and generate evidence for performance analysis")
+  .version(packageVersion);
 
 type AnalyzeCliOptions = AnalyzeCommandOptions & {
   output?: string;
@@ -33,6 +53,7 @@ type AnalyzeCliOptions = AnalyzeCommandOptions & {
   llmProvider?: string;
   llmModel?: string;
   verbose?: boolean;
+  ai?: boolean;
 };
 
 function parseOptionalInt(value: string | undefined): number | undefined {
@@ -138,7 +159,7 @@ program
 // Analyze command (default)
 program
   .command("analyze", { isDefault: true })
-  .description("Analyze a single pprof profile")
+  .description("Analyze a single pprof profile (default: convert to Markdown without LLM)")
   .argument("<profile>", "Path to pprof profile (.pb.gz)")
   .option("-f, --format <format>", "Output format: summary, detailed, adaptive", "adaptive")
   .option("-t, --type <type>", "Profile type: cpu, heap, auto", "auto")
@@ -147,7 +168,8 @@ program
   .option("-s, --source-dir <path>", "Source directory for code context")
   .option("--no-source", "Disable source code inclusion")
   .option("--max-hotspots <n>", "Maximum hotspots to show", "10")
-  .option("-m, --mode <mode>", "Mode: convert-only, analyze", "analyze")
+  .option("--ai", "Enable AI-powered recommendations (requires LLM API key)")
+  .option("-m, --mode <mode>", "Mode: convert-only, analyze (deprecated, use --ai)", "convert-only")
   .option("--llm-provider <provider>", "LLM provider: openai, azure-openai, anthropic, custom")
   .option("--llm-model <model>", "LLM model name")
   .option("--service <name>", "Service name for context")
@@ -157,6 +179,10 @@ program
   .option("-v, --verbose", "Enable verbose logging")
   .action(async (profilePath, opts) => {
     try {
+      // --ai flag overrides mode to 'analyze'
+      if (opts.ai) {
+        opts.mode = "analyze";
+      }
       await executeAnalyze(profilePath, opts as AnalyzeCliOptions);
     } catch (error) {
       console.error("Error:", error instanceof Error ? error.message : error);
@@ -167,7 +193,7 @@ program
 // Run command (profile + analyze)
 program
   .command("run")
-  .description("Profile a Node entry file and analyze the resulting CPU profile")
+  .description("Profile a Node entry file and convert the resulting profiles to Markdown")
   .argument("<entry>", "Entry file to run (js/mjs/cjs)")
   .argument("[entryArgs...]", "Arguments passed to the entry file")
   .option("-d, --duration <duration>", "CPU profile duration (e.g. 10s, 5000ms)", "10s")
@@ -185,7 +211,8 @@ program
   .option("-s, --source-dir <path>", "Source directory for code context")
   .option("--no-source", "Disable source code inclusion")
   .option("--max-hotspots <n>", "Maximum hotspots to show", "10")
-  .option("-m, --mode <mode>", "Mode: convert-only, analyze", "analyze")
+  .option("--ai", "Enable AI-powered recommendations (requires LLM API key)")
+  .option("-m, --mode <mode>", "Mode: convert-only, analyze (deprecated, use --ai)", "convert-only")
   .option("--llm-provider <provider>", "LLM provider: openai, azure-openai, anthropic, custom")
   .option("--llm-model <model>", "LLM model name")
   .option("--service <name>", "Service name for context")
@@ -197,6 +224,11 @@ program
     try {
       if (opts.verbose) {
         setLogLevel("debug");
+      }
+
+      // --ai flag overrides mode to 'analyze'
+      if (opts.ai) {
+        opts.mode = "analyze";
       }
 
       const durationMs = parseDurationInput(opts.duration);

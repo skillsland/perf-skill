@@ -1,21 +1,41 @@
 /**
  * Skill manifest for AI platform integration
+ * 
+ * This skill provides deterministic evidence extraction from pprof profiles.
+ * The host agent (Claude/Cursor/etc.) should use this evidence to generate
+ * optimization recommendations - the skill itself does not require LLM access.
  */
 
 import type { SkillManifest } from "../types.js";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Read version from package.json
+function getPackageVersion(): string {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const pkgPath = join(__dirname, "..", "..", "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    return pkg.version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
 
 /**
  * Full skill manifest with JSON schemas
  */
 export const SKILL_MANIFEST: SkillManifest = {
-  name: "pprof_ai_analyzer",
-  description: "Convert pprof .pb.gz profiles to Markdown and generate AI-powered performance recommendations. Supports CPU and heap profiling analysis, profile comparison/diff, and actionable optimization suggestions.",
-  version: "1.0.0",
+  name: "pprof_evidence_extractor",
+  description: "Convert pprof .pb.gz profiles to structured Markdown and JSON evidence for performance analysis. Produces deterministic hotspots, call paths, and metrics that can be used by any agent to generate optimization recommendations. No external API dependencies required.",
+  version: getPackageVersion(),
   inputSchema: {
     type: "object",
     oneOf: [
       {
-        title: "Analyze Single Profile",
+        title: "Convert Profile to Evidence",
         properties: {
           action: { type: "string", const: "analyze" },
           profile_base64: { 
@@ -30,30 +50,29 @@ export const SKILL_MANIFEST: SkillManifest = {
             type: "string", 
             enum: ["summary", "detailed", "adaptive"],
             default: "adaptive",
+            description: "Output format for the markdown report",
           },
           profile_type: { 
             type: "string", 
             enum: ["cpu", "heap", "auto"],
             default: "auto",
+            description: "Type of profile (auto-detected if not specified)",
           },
           max_hotspots: { 
             type: "integer", 
             minimum: 1, 
             maximum: 50,
             default: 10,
+            description: "Maximum number of hotspots to include in output",
           },
           include_source: {
             type: "boolean",
             default: false,
-          },
-          mode: {
-            type: "string",
-            enum: ["convert-only", "analyze"],
-            default: "analyze",
-            description: "convert-only skips LLM analysis",
+            description: "Include source code snippets (requires source_dir)",
           },
           context: {
             type: "object",
+            description: "Optional context to include in the output",
             properties: {
               service_name: { type: "string" },
               scenario: { type: "string" },
@@ -86,6 +105,7 @@ export const SKILL_MANIFEST: SkillManifest = {
             type: "string",
             enum: ["none", "scale-to-base-total", "per-second"],
             default: "scale-to-base-total",
+            description: "Normalization mode for comparing profiles of different durations",
           },
           max_regressions: {
             type: "integer",
@@ -106,71 +126,62 @@ export const SKILL_MANIFEST: SkillManifest = {
   },
   outputSchema: {
     type: "object",
+    description: "Structured evidence for performance analysis. Use this data to generate recommendations.",
     properties: {
       markdown: { 
         type: "string",
-        description: "Full markdown report",
+        description: "Human-readable markdown report with hotspots and call paths",
       },
       profile_meta: {
         type: "object",
+        description: "Metadata about the profile",
         properties: {
           type: { type: "string", enum: ["cpu", "heap"] },
           duration_sec: { type: "number" },
           samples: { type: "integer" },
           sample_type: { type: "string" },
           unit: { type: "string" },
+          total_value: { type: "number" },
         },
       },
       hotspots: {
         type: "array",
+        description: "Top functions by resource consumption, ranked by impact",
         items: {
           type: "object",
           properties: {
-            rank: { type: "integer" },
-            function: { type: "string" },
-            self_pct: { type: "number" },
-            cum_pct: { type: "number" },
-            location: { type: "string" },
-            call_path: { type: "array", items: { type: "string" } },
+            rank: { type: "integer", description: "Rank by impact (1 = highest)" },
+            function: { type: "string", description: "Function name" },
+            self_pct: { type: "number", description: "Percentage of total spent in this function only" },
+            cum_pct: { type: "number", description: "Percentage including callees" },
+            self_value: { type: "number", description: "Absolute value (samples or bytes)" },
+            cum_value: { type: "number" },
+            location: { type: "string", description: "Source file:line if available" },
+            call_path: { type: "array", items: { type: "string" }, description: "Call stack from root" },
+            callers: { type: "array", items: { type: "string" } },
+            callees: { type: "array", items: { type: "string" } },
           },
           required: ["rank", "function"],
         },
       },
-      recommendations: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            title: { type: "string" },
-            rationale: { type: "string" },
-            steps: { type: "array", items: { type: "string" } },
-            expected_impact: { type: "string", enum: ["high", "medium", "low"] },
-            risk: { type: "string", enum: ["high", "medium", "low"] },
-            confidence: { type: "number", minimum: 0, maximum: 1 },
-          },
-          required: ["title", "rationale", "steps", "expected_impact", "risk", "confidence"],
-        },
-      },
-      next_steps: {
-        type: "array",
-        items: { type: "string" },
-      },
       // Diff-specific fields
       regressions: {
         type: "array",
+        description: "Functions that got slower (for diff analysis)",
         items: {
           type: "object",
           properties: {
             rank: { type: "integer" },
             function: { type: "string" },
-            delta_self: { type: "number" },
-            delta_self_pct: { type: "number" },
+            delta_self: { type: "number", description: "Change in self value" },
+            delta_self_pct: { type: "number", description: "Change as percentage of total" },
             change_type: { type: "string", enum: ["regression", "improvement", "new", "removed"] },
           },
         },
       },
       improvements: {
         type: "array",
+        description: "Functions that got faster (for diff analysis)",
         items: {
           type: "object",
         },
@@ -178,7 +189,17 @@ export const SKILL_MANIFEST: SkillManifest = {
       summary: {
         type: "array",
         items: { type: "string" },
-        description: "Executive summary points for diff",
+        description: "Executive summary points (for diff analysis)",
+      },
+      metrics: {
+        type: "object",
+        description: "Processing metrics",
+        properties: {
+          convertMs: { type: "number" },
+          totalMs: { type: "number" },
+          profileBytes: { type: "number" },
+          markdownChars: { type: "number" },
+        },
       },
     },
     required: ["markdown", "hotspots"],

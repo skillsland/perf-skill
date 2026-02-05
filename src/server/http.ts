@@ -1,5 +1,8 @@
 /**
  * HTTP API server for perf-skill
+ * 
+ * All endpoints produce deterministic, evidence-based output by default.
+ * No external LLM calls are made unless explicitly requested.
  */
 
 import Fastify, { type FastifyInstance } from "fastify";
@@ -7,6 +10,9 @@ import multipart, { type MultipartFile } from "@fastify/multipart";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { analyze, diff } from "../index.js";
 import type { AnalyzeOptions, DiffOptions, AnalyzeResult, DiffResult, ApiResponse } from "../types.js";
 import { logger } from "../utils/logger.js";
@@ -18,6 +24,21 @@ import {
   parseNumber,
   resolveMultipartFile,
 } from "./utils.js";
+
+// Read version from package.json
+function getPackageVersion(): string {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const pkgPath = join(__dirname, "..", "..", "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    return pkg.version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+const packageVersion = getPackageVersion();
 
 export interface ServerOptions {
   port?: number;
@@ -87,11 +108,21 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
   server.get("/v1", async () => {
     return {
       name: "perf-skill",
-      version: "1.0.0",
+      version: packageVersion,
+      description: "Deterministic performance profile evidence extractor",
       endpoints: {
-        analyze: "POST /v1/pprof/analyze",
-        diff: "POST /v1/pprof/diff",
-        convert: "POST /v1/pprof/convert",
+        analyze: {
+          path: "POST /v1/pprof/analyze",
+          description: "Convert profile to structured evidence (convert-only by default)",
+        },
+        diff: {
+          path: "POST /v1/pprof/diff",
+          description: "Compare two profiles and identify regressions/improvements",
+        },
+        convert: {
+          path: "POST /v1/pprof/convert",
+          description: "Convert profile to Markdown (always convert-only)",
+        },
       },
     };
   });
@@ -132,6 +163,12 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
             message: error instanceof Error ? error.message : "Invalid options",
           },
         } satisfies ApiResponse<never>);
+      }
+      
+      // Default to convert-only mode (deterministic, no LLM)
+      // LLM analysis requires explicit mode: "analyze" in options
+      if (options.mode === undefined) {
+        options.mode = "convert-only";
       }
       
       // Default to not including source in server mode for security

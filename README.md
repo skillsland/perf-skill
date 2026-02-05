@@ -4,13 +4,22 @@
 [![npm version](https://badge.fury.io/js/perf-skill.svg)](http://badge.fury.io/js/perf-skill)
 ![license](https://img.shields.io/npm/l/perf-skill)
 
-AI‑assisted pprof toolkit for CPU/heap profiles: convert .pb.gz/.pprof to structured Markdown, compare profiles for regressions, and optionally generate evidence‑backed recommendations.
+**Deterministic** pprof evidence extractor for CPU/heap profiles: convert .pb.gz/.pprof to structured Markdown and JSON, compare profiles for regressions, and produce evidence that any AI agent can use for optimization recommendations.
+
+## Philosophy
+
+This tool follows the "evidence generator" pattern:
+
+1. **Deterministic by default** — All operations produce consistent, reproducible output without external API calls
+2. **LLM-agnostic** — The tool produces structured evidence (hotspots, call paths, metrics); the host agent (Claude, Cursor, etc.) performs reasoning
+3. **No network by default** — No data leaves your machine unless you explicitly enable AI analysis with `--ai`
+4. **Skill-ready** — Designed to work as a Claude Skill / Cursor Agent Skill that provides facts for the agent to interpret
 
 ## Features
 
-- **Convert**: Transform pprof profiles to structured Markdown
-- **Analyze**: Get AI-powered optimization recommendations
-- **Diff**: Compare two profiles to find regressions
+- **Convert** (default): Transform pprof profiles to structured Markdown and JSON evidence
+- **Analyze**: Optionally get AI-powered recommendations with `--ai` flag
+- **Diff**: Compare two profiles to find regressions and improvements
 - **Multi-format**: Library, CLI, and HTTP API
 
 ## Installation
@@ -30,14 +39,20 @@ npx perf-skill analyze profile.pb.gz
 ### CLI Usage
 
 ```bash
-# Convert profile to markdown (fast, no LLM)
+# Analyze profile → structured evidence (default, no LLM, no network)
+perf-skill analyze cpu.pb.gz -o report.md
+
+# Analyze with explicit AI recommendations (requires API key)
+perf-skill analyze cpu.pb.gz --ai -o report.md
+
+# Convert-only command (always deterministic)
 perf-skill convert cpu.pb.gz -o report.md
 
-# Full analysis with AI recommendations
-perf-skill analyze cpu.pb.gz --mode analyze
-
-# Profile a Node entry (CPU, 10s) and analyze
+# Profile a Node entry (CPU, 10s) → evidence output
 perf-skill run slow.mjs --duration 10s
+
+# Profile with AI recommendations
+perf-skill run slow.mjs --duration 10s --ai
 
 # CPU + Heap profiling (separate reports)
 perf-skill run slow.mjs --heap --output cpu.md --heap-output heap.md
@@ -45,7 +60,7 @@ perf-skill run slow.mjs --heap --output cpu.md --heap-output heap.md
 # Compare two profiles
 perf-skill diff base.pb.gz current.pb.gz -o diff.md
 
-# Start HTTP server
+# Start HTTP server (all endpoints deterministic by default)
 perf-skill server --port 3000
 
 # Install SKILL.md for Cursor (user or project)
@@ -59,14 +74,15 @@ perf-skill init ./skills/perf-skill
 ### Programmatic Usage
 
 ```typescript
-import { analyze, diff } from "perf-skill-skill";
+import { analyze, diff } from "perf-skill";
 
-// Convert only (no LLM)
-const result = await analyze("cpu.pb.gz", { mode: "convert-only" });
-console.log(result.markdown);
-console.log(result.hotspots);
+// Default: deterministic evidence extraction (no LLM, no network)
+const result = await analyze("cpu.pb.gz");
+console.log(result.markdown);    // Structured Markdown report
+console.log(result.hotspots);    // Array of hotspot objects
+console.log(result.raw.llmStatus); // "skipped" - no LLM was invoked
 
-// Full analysis with AI recommendations
+// Explicit AI analysis (requires API key)
 const fullResult = await analyze("cpu.pb.gz", {
   mode: "analyze",
   context: {
@@ -76,8 +92,9 @@ const fullResult = await analyze("cpu.pb.gz", {
   },
 });
 console.log(fullResult.recommendations);
+console.log(fullResult.raw.llmStatus); // "success" or "failed"
 
-// Compare two profiles
+// Compare two profiles (always deterministic)
 const diffResult = await diff("base.pb.gz", "current.pb.gz", {
   normalize: "scale-to-base-total",
 });
@@ -87,6 +104,8 @@ console.log(diffResult.improvements);
 
 ### HTTP API
 
+All HTTP endpoints produce **deterministic** output by default (no LLM).
+
 ```bash
 # Start server
 perf-skill server
@@ -94,11 +113,20 @@ perf-skill server
 # Start server with security overrides
 perf-skill server --no-cors --no-helmet --rate-limit --rate-limit-max 120 --rate-limit-window-ms 60000
 
-# Analyze profile
+# Analyze profile (deterministic evidence, no LLM)
 curl -X POST http://localhost:3000/v1/pprof/analyze \
   -F "file=@cpu.pb.gz"
 
-# Compare profiles
+# Analyze with AI recommendations (requires mode: "analyze" in options)
+curl -X POST http://localhost:3000/v1/pprof/analyze \
+  -F "file=@cpu.pb.gz" \
+  -F 'options={"mode":"analyze"}'
+
+# Convert-only endpoint (always deterministic)
+curl -X POST http://localhost:3000/v1/pprof/convert \
+  -F "file=@cpu.pb.gz"
+
+# Compare profiles (always deterministic)
 curl -X POST http://localhost:3000/v1/pprof/diff \
   -F "base=@base.pb.gz" \
   -F "current=@current.pb.gz"
@@ -108,20 +136,23 @@ curl -X POST http://localhost:3000/v1/pprof/diff \
 
 ### `perf-skill analyze <profile.pb.gz>`
 
-| Option                 | Description                                      | Default    |
-| ---------------------- | ------------------------------------------------ | ---------- |
-| `-f, --format`         | Output format: `summary`, `detailed`, `adaptive` | `adaptive` |
-| `-t, --type`           | Profile type: `cpu`, `heap`, `auto`              | `auto`     |
-| `-o, --output`         | Output markdown file                             | stdout     |
-| `-j, --json`           | Output JSON results file                         | -          |
-| `-m, --mode`           | `convert-only` or `analyze`                      | `analyze`  |
-| `-s, --source-dir`     | Source directory for code context                | -          |
-| `--max-hotspots`       | Maximum hotspots to show                         | `10`       |
-| `--llm-provider`       | LLM provider: `openai`, `anthropic`, etc.        | `openai`   |
-| `--llm-model`          | LLM model name                                   | `gpt-5.2`  |
-| `--service`            | Service name for context                         | -          |
-| `--scenario`           | Scenario description                             | -          |
-| `--redact/--no-redact` | Redact sensitive information                     | `true`     |
+| Option                 | Description                                      | Default        |
+| ---------------------- | ------------------------------------------------ | -------------- |
+| `-f, --format`         | Output format: `summary`, `detailed`, `adaptive` | `adaptive`     |
+| `-t, --type`           | Profile type: `cpu`, `heap`, `auto`              | `auto`         |
+| `-o, --output`         | Output markdown file                             | stdout         |
+| `-j, --json`           | Output JSON results file                         | -              |
+| `-m, --mode`           | `convert-only` or `analyze`                      | `convert-only` |
+| `--ai`                 | Enable AI-powered recommendations (requires key) | `false`        |
+| `-s, --source-dir`     | Source directory for code context                | -              |
+| `--max-hotspots`       | Maximum hotspots to show                         | `10`           |
+| `--llm-provider`       | LLM provider: `openai`, `anthropic`, etc.        | `openai`       |
+| `--llm-model`          | LLM model name                                   | `gpt-5.2`      |
+| `--service`            | Service name for context                         | -              |
+| `--scenario`           | Scenario description                             | -              |
+| `--redact/--no-redact` | Redact sensitive information                     | `true`         |
+
+> **Note:** By default, `analyze` produces deterministic evidence output (no LLM). Use `--ai` to explicitly enable AI recommendations.
 
 ### `perf-skill run <entry> [entryArgs...]`
 
@@ -139,7 +170,8 @@ curl -X POST http://localhost:3000/v1/pprof/diff \
 | `-t, --type`            | Profile type: `cpu`, `heap`, `auto`              | `auto`                      |
 | `-o, --output`          | Output markdown file                             | stdout                      |
 | `-j, --json`            | Output JSON results file                         | -                           |
-| `-m, --mode`            | `convert-only` or `analyze`                      | `analyze`                   |
+| `-m, --mode`            | `convert-only` or `analyze`                      | `convert-only`              |
+| `--ai`                  | Enable AI-powered recommendations (requires key) | `false`                     |
 | `-s, --source-dir`      | Source directory for code context                | -                           |
 | `--max-hotspots`        | Maximum hotspots to show                         | `10`                        |
 | `--llm-provider`        | LLM provider: `openai`, `anthropic`, etc.        | `openai`                    |
@@ -149,6 +181,8 @@ curl -X POST http://localhost:3000/v1/pprof/diff \
 | `--redact/--no-redact`  | Redact sensitive information                     | `true`                      |
 
 When `--heap` is enabled and `--output` is omitted, `perf-skill` writes `cpu.md` and `heap.md` instead of printing to stdout.
+
+> **Note:** By default, `run` produces deterministic evidence output (no LLM). Use `--ai` to explicitly enable AI recommendations.
 
 ### `perf-skill profile <entry> [entryArgs...]`
 
@@ -209,9 +243,9 @@ Full context with call trees and source code.
 
 Summary with drill-down sections and anchor links for navigation.
 
-## AI Recommendations
+## AI Recommendations (Optional)
 
-When using `--mode analyze`, the tool generates structured recommendations:
+When using `--ai` (or `--mode analyze`), the tool invokes an LLM to generate structured recommendations:
 
 ```typescript
 interface Recommendation {
@@ -225,6 +259,8 @@ interface Recommendation {
 ```
 
 All recommendations must reference evidence from the profile (function names, percentages, locations).
+
+> **Note:** For Skill/Agent usage, it is recommended to let the host agent (Claude, Cursor, etc.) generate recommendations based on the deterministic evidence output. This keeps the tool LLM-agnostic and allows the agent to apply its own reasoning.
 
 ## Profile Diff
 
@@ -370,8 +406,10 @@ const server = await createServer({
 ## Requirements
 
 - Node.js >= 22.6.0
-- For AI analysis: API key for OpenAI, Anthropic, or compatible provider
 - CPU profiling uses bundled `@datadog/pprof` (native module) on supported platforms
+- **Optional:** For AI recommendations (`--ai`), an API key for OpenAI, Anthropic, or compatible provider
+
+> **No API key required for default usage.** The tool produces complete, actionable evidence without any external dependencies.
 
 ## API Reference
 

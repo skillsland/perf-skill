@@ -5,6 +5,7 @@
 export {
   createLLMClient,
   getDefaultLLMConfig,
+  LLMNotConfiguredError,
   type LLMClient,
   type LLMResponse,
   type ChatMessage,

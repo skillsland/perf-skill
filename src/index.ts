@@ -92,13 +92,13 @@ export {
 
 // Import for main functions
 import { convertProfileToMarkdown } from "./convert/index.js";
-import { 
-  createLLMClient, 
+import {
+  createLLMClient,
   getDefaultLLMConfig,
+  LLMNotConfiguredError,
   SYSTEM_PROMPT,
   buildAnalysisPrompt,
   parseAnalysisOutput,
-  createFallbackResult,
 } from "./llm/index.js";
 import { diffProfiles, generateDiffMarkdown, type DiffData } from "./diff/index.js";
 import { enrichHotspots } from "./convert/index.js";
@@ -161,14 +161,16 @@ export async function analyze(
   // Enrich hotspots with call path info
   const enrichedHotspots = enrichHotspots(convertResult.hotspots, convertResult.markdown);
   
-  // If convert-only mode, return without LLM analysis
-  if (options.mode === "convert-only") {
+  // Default mode is convert-only (deterministic, no LLM required)
+  // Only run LLM analysis when mode is explicitly set to "analyze"
+  if (options.mode !== "analyze") {
     return {
       profileMeta: convertResult.meta,
       markdown: convertResult.markdown,
       hotspots: enrichedHotspots,
       raw: {
         pprofToMdMarkdown: convertResult.rawMarkdown,
+        llmStatus: "skipped",
       },
       metrics: {
         convertMs: convertResult.durationMs,
@@ -179,57 +181,80 @@ export async function analyze(
     };
   }
   
-  // LLM analysis
+  // LLM analysis (only when explicitly requested via mode="analyze")
   const llmStartTime = performance.now();
   let recommendations: Recommendation[] | undefined;
   let nextSteps: string[] | undefined;
   let llmJson: unknown;
   let llmErrors: string[] | undefined;
+  let llmStatus: "success" | "failed" | "skipped" = "skipped";
   
   try {
     const llmConfig = options.llm || getDefaultLLMConfig();
-    const client = createLLMClient(llmConfig);
     
-    const prompt = buildAnalysisPrompt({
-      markdown: convertResult.markdown,
-      profileType: options.profileType || "auto",
-      context: options.context,
-    });
-    
-    const response = await client.chat([
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: prompt },
-    ], { jsonMode: true });
-    
-    const parseResult = await parseAnalysisOutput(response.content, client);
-    
-    if (parseResult.success && parseResult.data) {
-      recommendations = parseResult.data.recommendations;
-      nextSteps = parseResult.data.nextSteps;
-      llmJson = parseResult.rawJson;
+    // Check if LLM is properly configured before attempting to create client
+    const provider = llmConfig.provider;
+    const hasApiKey = Boolean(
+      llmConfig.apiKey ||
+      (provider === "openai" || provider === "azure-openai"
+        ? process.env.OPENAI_API_KEY
+        : provider === "anthropic"
+          ? process.env.ANTHROPIC_API_KEY
+          : process.env.LLM_API_KEY)
+    );
+    if (!hasApiKey) {
+      // LLM was explicitly requested but no API key available
+      llmStatus = "skipped";
+      llmErrors = [
+        `LLM analysis requested but no API key configured for provider "${provider}". Set OPENAI_API_KEY or ANTHROPIC_API_KEY, or provide apiKey in configuration.`,
+      ];
+      logger.warn("LLM analysis skipped: no API key configured", { provider });
     } else {
-      llmErrors = parseResult.errors;
-      // Use fallback
-      const fallback = createFallbackResult(enrichedHotspots);
-      recommendations = fallback.recommendations;
-      nextSteps = fallback.nextSteps;
+      const client = createLLMClient(llmConfig);
+      
+      const prompt = buildAnalysisPrompt({
+        markdown: convertResult.markdown,
+        profileType: options.profileType || "auto",
+        context: options.context,
+      });
+      
+      const response = await client.chat([
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ], { jsonMode: true });
+      
+      const parseResult = await parseAnalysisOutput(response.content, client);
+      
+      if (parseResult.success && parseResult.data) {
+        recommendations = parseResult.data.recommendations;
+        nextSteps = parseResult.data.nextSteps;
+        llmJson = parseResult.rawJson;
+        llmStatus = "success";
+      } else {
+        llmErrors = parseResult.errors;
+        llmStatus = "failed";
+        logger.warn("LLM output parsing failed", { errors: parseResult.errors });
+      }
     }
   } catch (error) {
-    logger.error("LLM analysis failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    llmErrors = [error instanceof Error ? error.message : String(error)];
-    // Use fallback
-    const fallback = createFallbackResult(enrichedHotspots);
-    recommendations = fallback.recommendations;
-    nextSteps = fallback.nextSteps;
+    // Log as warning, not error - this is expected when LLM is not configured
+    if (error instanceof LLMNotConfiguredError) {
+      llmStatus = "skipped";
+      llmErrors = [error.message];
+      logger.warn("LLM analysis skipped: no API key configured", { error: error.message });
+    } else {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.warn("LLM analysis failed", { error: errorMsg });
+      llmErrors = [errorMsg];
+      llmStatus = "failed";
+    }
   }
   
   const llmMs = performance.now() - llmStartTime;
   
-  // Build final markdown with recommendations appendix
+  // Build final markdown with recommendations appendix (only if LLM succeeded)
   let finalMarkdown = convertResult.markdown;
-  if (recommendations && recommendations.length > 0) {
+  if (llmStatus === "success" && recommendations && recommendations.length > 0) {
     finalMarkdown += "\n\n---\n\n## AI-Generated Recommendations\n\n";
     for (let i = 0; i < recommendations.length; i++) {
       const rec = recommendations[i];
@@ -241,18 +266,27 @@ export async function analyze(
       }
       finalMarkdown += `\n**Impact:** ${rec.expectedImpact} | **Risk:** ${rec.risk} | **Confidence:** ${(rec.confidence * 100).toFixed(0)}%\n\n`;
     }
+  } else if (llmStatus === "skipped" || llmStatus === "failed") {
+    // Add note about LLM status but don't include fake recommendations
+    finalMarkdown += "\n\n---\n\n";
+    if (llmStatus === "skipped") {
+      finalMarkdown += "> **Note:** AI recommendations were not generated. Configure an LLM API key and use `--ai` flag to enable.\n";
+    } else {
+      finalMarkdown += "> **Note:** AI recommendations could not be generated due to an error. See raw.llmErrors for details.\n";
+    }
   }
   
   return {
     profileMeta: convertResult.meta,
     markdown: finalMarkdown,
     hotspots: enrichedHotspots,
-    recommendations,
-    nextSteps,
+    recommendations: llmStatus === "success" ? recommendations : undefined,
+    nextSteps: llmStatus === "success" ? nextSteps : undefined,
     raw: {
       pprofToMdMarkdown: convertResult.rawMarkdown,
       llmJson,
       llmErrors,
+      llmStatus,
     },
     metrics: {
       convertMs: convertResult.durationMs,
