@@ -10,6 +10,7 @@ import { analyze, diff, type DiffOptions } from "../index.js";
 import { parseDurationInput, runCpuProfile } from "../profile/runner.js";
 import { setLogLevel } from "../utils/logger.js";
 import { validateProfileExtension } from "../utils/limits.js";
+import { runInit, type CursorScope } from "./init.js";
 import {
   buildAnalyzeOptions,
   buildConvertOptions,
@@ -38,6 +39,14 @@ function parseOptionalInt(value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseCursorScope(scope?: string): CursorScope | undefined {
+  if (!scope) return undefined;
+  if (scope !== "user" && scope !== "project") {
+    throw new Error(`Invalid scope: ${scope}. Use 'user' or 'project'.`);
+  }
+  return scope;
 }
 
 function deriveSiblingPath(basePath: string, suffix: string, defaultExt: string): string {
@@ -97,6 +106,34 @@ async function executeAnalyze(profilePath: string, opts: AnalyzeCliOptions): Pro
     }
   }
 }
+
+// Init command (install SKILL.md)
+program
+  .command("init")
+  .description("Install SKILL.md to a target directory")
+  .argument("[target]", "Target directory or file path")
+  .option("-c, --cursor", "Install into Cursor skills folder")
+  .option("--scope <scope>", "Cursor scope: user or project")
+  .option("-f, --force", "Overwrite existing SKILL.md")
+  .option("--dry-run", "Show destination without writing files")
+  .action(async (target, opts) => {
+    try {
+      const scope = parseCursorScope(opts.scope);
+      const result = await runInit({
+        target,
+        cursor: opts.cursor,
+        scope,
+        force: opts.force,
+        dryRun: opts.dryRun,
+      });
+
+      const prefix = opts.dryRun ? "Would install skill to" : "Installed skill to";
+      console.log(`${prefix} ${result.destFile}`);
+    } catch (error) {
+      console.error("Error:", error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
 
 // Analyze command (default)
 program

@@ -47,6 +47,13 @@ perf-skill diff base.pb.gz current.pb.gz -o diff.md
 
 # Start HTTP server
 perf-skill server --port 3000
+
+# Install SKILL.md for Cursor (user or project)
+perf-skill init --cursor
+perf-skill init --cursor --scope project
+
+# Install SKILL.md to a custom directory
+perf-skill init ./skills/perf-skill
 ```
 
 ### Programmatic Usage
@@ -163,6 +170,17 @@ When `--heap` is enabled and `--output` is omitted, `perf-skill` writes `cpu.md`
 | `--max-regressions`        | Maximum regressions to show                      | `10`                  |
 | `--max-improvements`       | Maximum improvements to show                     | `5`                   |
 | `--max-decompressed-bytes` | Maximum decompressed profile size (bytes)        | -                     |
+
+### `perf-skill init [target]`
+
+Install the bundled `SKILL.md` to a target directory or Cursor skills folder.
+
+| Option         | Description                            | Default |
+| -------------- | -------------------------------------- | ------- |
+| `-c, --cursor` | Install into Cursor skills folder      | `false` |
+| `--scope`      | Cursor scope: `user` or `project`      | `user`  |
+| `-f, --force`  | Overwrite existing `SKILL.md`          | `false` |
+| `--dry-run`    | Show destination without writing files | `false` |
 
 ## Output Formats
 
