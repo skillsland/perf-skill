@@ -19,7 +19,6 @@ perf-skill/
 │   ├── parser/           # pprof parsing logic
 │   ├── renderer/         # Markdown/JSON output
 │   ├── profile/          # Node.js profiling
-│   ├── server/           # HTTP API server
 │   └── index.ts          # Library exports
 ├── test/                 # Test files
 ├── SKILL.md              # Main skill definition
@@ -163,4 +162,3 @@ npx perf-skill analyze profile.pb.gz --verbose
 - Profile data may contain sensitive information
 - Use `--redact` (default) to sanitize paths
 - Never commit real profiles to the repository
-- HTTP server has rate limiting enabled by default

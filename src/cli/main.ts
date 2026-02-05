@@ -463,43 +463,4 @@ program
     }
   });
 
-// Server command
-program
-  .command("server")
-  .description("Start HTTP API server")
-  .option("-p, --port <port>", "Port to listen on", "3000")
-  .option("-h, --host <host>", "Host to bind to", "0.0.0.0")
-  .option("--cors", "Enable CORS")
-  .option("--no-cors", "Disable CORS")
-  .option("--cors-origin <origin>", "CORS origin(s), comma-separated or '*'")
-  .option("--helmet", "Enable helmet security headers")
-  .option("--no-helmet", "Disable helmet security headers")
-  .option("--rate-limit", "Enable rate limiting")
-  .option("--no-rate-limit", "Disable rate limiting")
-  .option("--rate-limit-max <n>", "Rate limit max requests per window")
-  .option("--rate-limit-window-ms <ms>", "Rate limit window in ms")
-  .option("-v, --verbose", "Enable verbose logging")
-  .action(async (opts) => {
-    if (opts.verbose) {
-      setLogLevel("debug");
-    }
-
-    try {
-      const { startServer } = await import("../server/http.js");
-      await startServer({
-        port: parseInt(opts.port, 10),
-        host: opts.host,
-        enableCors: opts.cors,
-        corsOrigin: opts.corsOrigin,
-        enableHelmet: opts.helmet,
-        enableRateLimit: opts.rateLimit,
-        rateLimitMax: opts.rateLimitMax ? parseInt(opts.rateLimitMax, 10) : undefined,
-        rateLimitWindowMs: opts.rateLimitWindowMs ? parseInt(opts.rateLimitWindowMs, 10) : undefined,
-      });
-    } catch (error) {
-      console.error("Error:", error instanceof Error ? error.message : error);
-      process.exit(1);
-    }
-  });
-
 program.parse();

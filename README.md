@@ -20,7 +20,7 @@ This tool follows the "evidence generator" pattern:
 - **Convert** (default): Transform pprof profiles to structured Markdown and JSON evidence
 - **Analyze**: Optionally get AI-powered recommendations with `--ai` flag
 - **Diff**: Compare two profiles to find regressions and improvements
-- **Multi-format**: Library, CLI, and HTTP API
+- **Multiple interfaces**: Library API and CLI for direct integration
 
 ## Installation
 
@@ -80,9 +80,6 @@ perf-skill run slow.mjs --heap --output cpu.md --heap-output heap.md
 # Compare two profiles
 perf-skill diff base.pb.gz current.pb.gz -o diff.md
 
-# Start HTTP server (all endpoints deterministic by default)
-perf-skill server --port 3000
-
 # Install skill for your AI platform
 perf-skill init --ai claude
 perf-skill init --ai cursor --scope project
@@ -121,36 +118,6 @@ const diffResult = await diff("base.pb.gz", "current.pb.gz", {
 });
 console.log(diffResult.regressions);
 console.log(diffResult.improvements);
-```
-
-### HTTP API
-
-All HTTP endpoints produce **deterministic** output by default (no LLM).
-
-```bash
-# Start server
-perf-skill server
-
-# Start server with security overrides
-perf-skill server --no-cors --no-helmet --rate-limit --rate-limit-max 120 --rate-limit-window-ms 60000
-
-# Analyze profile (deterministic evidence, no LLM)
-curl -X POST http://localhost:3000/v1/pprof/analyze \
-  -F "file=@cpu.pb.gz"
-
-# Analyze with AI recommendations (requires mode: "analyze" in options)
-curl -X POST http://localhost:3000/v1/pprof/analyze \
-  -F "file=@cpu.pb.gz" \
-  -F 'options={"mode":"analyze"}'
-
-# Convert-only endpoint (always deterministic)
-curl -X POST http://localhost:3000/v1/pprof/convert \
-  -F "file=@cpu.pb.gz"
-
-# Compare profiles (always deterministic)
-curl -X POST http://localhost:3000/v1/pprof/diff \
-  -F "base=@base.pb.gz" \
-  -F "current=@current.pb.gz"
 ```
 
 ## CLI Options
@@ -380,12 +347,6 @@ writeFileSync("heap.pb.gz", gzipSync(heapProfile.encode()));
 | `LLM_RETRY_DELAY_MS`   | Base retry delay in ms                          |
 | `LOG_LEVEL`            | Logging level: `debug`, `info`, `warn`, `error` |
 | `LOG_FORMAT`           | Log format: `text`, `json`                      |
-| `CORS_ENABLED`         | Enable CORS (`true`/`false`)                    |
-| `CORS_ORIGIN`          | CORS origin(s), comma-separated or `*`          |
-| `HELMET_ENABLED`       | Enable Helmet (`true`/`false`)                  |
-| `RATE_LIMIT_ENABLED`   | Enable rate limiting (`true`/`false`)           |
-| `RATE_LIMIT_MAX`       | Rate limit max requests per window              |
-| `RATE_LIMIT_WINDOW_MS` | Rate limit window size in ms                    |
 
 Example:
 
@@ -422,42 +383,6 @@ By default, the tool redacts:
 - Absolute paths (normalized to relative)
 
 Disable with `--no-redact` or `redact: false`.
-
-### Server Mode
-
-In HTTP server mode:
-
-- Source code inclusion is disabled by default
-- File size limits are enforced
-- Only `.pb.gz` files are accepted
-
-Security defaults (configurable via env or server options):
-
-- CORS enabled (set `CORS_ENABLED=false` to disable)
-- Helmet enabled (set `HELMET_ENABLED=false` to disable)
-- Rate limiting enabled (default 60 req/min, set `RATE_LIMIT_ENABLED=false` or `RATE_LIMIT_MAX=0` to disable)
-
-Server CLI flags (override env defaults):
-
-- `--cors/--no-cors`
-- `--cors-origin <origin>` (comma-separated or `*`)
-- `--helmet/--no-helmet`
-- `--rate-limit/--no-rate-limit`
-- `--rate-limit-max <n>`
-- `--rate-limit-window-ms <ms>`
-
-ServerOptions (programmatic):
-
-```typescript
-const server = await createServer({
-  enableCors: true,
-  corsOrigin: "https://example.com",
-  enableHelmet: true,
-  enableRateLimit: true,
-  rateLimitMax: 60,
-  rateLimitWindowMs: 60_000,
-});
-```
 
 ## Requirements
 
