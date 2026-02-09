@@ -1,6 +1,6 @@
 {
   "name": "perf-skill",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "description": "Analyze pprof CPU and heap profiles and generate evidence-based performance recommendations.",
   "author": {
     "name": "skillsland"

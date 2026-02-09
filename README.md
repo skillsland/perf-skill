@@ -34,12 +34,26 @@ Or run directly with npx:
 npx perf-skill analyze profile.pb.gz
 ```
 
-### AI Platform Integration
+### Claude Code Plugin (Recommended)
 
-Install perf-skill as a skill for your preferred AI coding assistant:
+Install as a Claude Code plugin via the marketplace:
+
+```text
+# 1. Add the marketplace
+/plugin marketplace add skillsland/perf-skill
+
+# 2. Install the plugin
+/plugin install perf-skill@skillsland-perf
+```
+
+Once installed, Claude Code automatically discovers the skill — no additional setup needed.
+
+### AI Platform Integration (CLI)
+
+Alternatively, install perf-skill as a project-level skill for your preferred AI coding assistant:
 
 ```bash
-# Claude Code / Claude Desktop
+# Claude Code (project-level)
 npx perf-skill init --ai claude
 
 # Cursor
