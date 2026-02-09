@@ -22,7 +22,7 @@ function getPackageRoot(): string {
  */
 async function loadBaseSkillContent(): Promise<string> {
   const packageRoot = getPackageRoot();
-  const skillPath = resolve(packageRoot, "SKILL.md");
+  const skillPath = resolve(packageRoot, "skills", "perf-skill", "SKILL.md");
   return readFile(skillPath, "utf-8");
 }
 

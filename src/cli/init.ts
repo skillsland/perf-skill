@@ -166,7 +166,7 @@ function getPackageRoot(): string {
 
 async function loadSkillSource(): Promise<{ markdown: string; name: string; path: string }> {
   const packageRoot = getPackageRoot();
-  const skillPath = resolve(packageRoot, "SKILL.md");
+  const skillPath = resolve(packageRoot, "skills", "perf-skill", "SKILL.md");
   const markdown = await readFile(skillPath, "utf-8");
   const name = parseSkillFrontmatterName(markdown) ?? "perf-skill";
   return { markdown, name, path: skillPath };

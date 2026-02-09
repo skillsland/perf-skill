@@ -1,58 +1,27 @@
 {
-  "$schema": "https://claude.ai/plugins/v1/marketplace.schema.json",
-  "listing": {
-    "name": "perf-skill",
-    "tagline": "AI-powered pprof profile analysis",
-    "shortDescription": "Convert CPU and heap profiles to structured evidence for performance optimization",
-    "longDescription": "perf-skill is a deterministic evidence generator for pprof profiles. It converts .pb.gz CPU and heap profiles into structured Markdown and JSON, enabling AI agents to provide optimization recommendations based on factual evidence.\n\n## Features\n\n- **Analyze** - Convert profiles to structured hotspot reports\n- **Diff** - Compare two profiles to find regressions\n- **Profile** - Capture CPU and heap profiles from Node.js apps\n- **Evidence-first** - Produces structured data for AI agents to interpret\n\n## Use Cases\n\n- Identify CPU bottlenecks in Node.js applications\n- Find memory leaks and allocation hotspots\n- Compare before/after profiles to verify optimizations\n- Generate evidence for performance code reviews",
-    "category": "developer-tools",
-    "subcategory": "performance",
-    "icon": "chart-line",
-    "screenshots": [],
-    "documentation": "https://github.com/skillsland/perf-skill#readme",
-    "support": {
-      "url": "https://github.com/skillsland/perf-skill/issues",
-      "email": null
-    },
-    "pricing": {
-      "type": "free"
-    },
-    "stats": {
-      "installs": 0,
-      "rating": null,
-      "reviews": 0
+  "name": "skillsland-perf",
+  "owner": {
+    "name": "skillsland",
+    "email": "nicasio@foxmail.com"
+  },
+  "metadata": {
+    "description": "Performance profiling plugins for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "perf-skill",
+      "description": "Analyze pprof CPU and heap profiles and generate evidence-based performance recommendations.",
+      "version": "0.3.0",
+      "author": {
+        "name": "skillsland"
+      },
+      "source": {
+        "source": "github",
+        "repo": "skillsland/perf-skill",
+        "ref": "main"
+      },
+      "category": "Development workflows",
+      "tags": ["performance", "pprof", "profiling", "cpu", "heap", "optimization"]
     }
-  },
-  "triggers": {
-    "filePatterns": [
-      "*.pb.gz",
-      "*.pprof"
-    ],
-    "keywords": [
-      "profile",
-      "pprof",
-      "cpu",
-      "heap",
-      "memory",
-      "performance",
-      "slow",
-      "bottleneck",
-      "hotspot",
-      "optimize",
-      "regression"
-    ],
-    "intents": [
-      "analyze profile",
-      "why is my app slow",
-      "compare performance",
-      "find memory leak",
-      "cpu profiling",
-      "heap analysis"
-    ]
-  },
-  "requirements": {
-    "runtime": "node",
-    "minVersion": "20.0.0",
-    "dependencies": []
-  }
+  ]
 }

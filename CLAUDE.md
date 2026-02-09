@@ -21,8 +21,10 @@ perf-skill/
 │   ├── profile/          # Node.js profiling
 │   └── index.ts          # Library exports
 ├── test/                 # Test files
-├── SKILL.md              # Main skill definition
-├── .claude-plugin/       # Claude Marketplace configs
+├── skills/
+│   └── perf-skill/
+│       └── SKILL.md      # Main skill definition (single source of truth)
+├── .claude-plugin/       # Claude Code plugin configs
 ├── package.json
 └── README.md
 ```
@@ -83,7 +85,7 @@ Each platform has its own configuration in `src/cli/platforms.ts`.
 ### Template System
 
 Platform-specific skill files are generated from:
-1. Base `SKILL.md` content
+1. Base `skills/perf-skill/SKILL.md` content
 2. Platform configuration (frontmatter, sections)
 3. Template engine in `src/cli/template.ts`
 
@@ -94,7 +96,7 @@ Platform-specific skill files are generated from:
 - Use TypeScript strict mode
 - Follow existing patterns for error handling
 - Add tests for new features
-- Update SKILL.md for user-facing changes
+- Update `skills/perf-skill/SKILL.md` for user-facing changes
 
 ### Testing
 
@@ -125,7 +127,7 @@ node --test --import tsx test/parser.test.ts
 
 ### Updating SKILL.md
 
-1. Edit the root `SKILL.md` file
+1. Edit `skills/perf-skill/SKILL.md`
 2. Test rendering: `npm run cli -- init --ai claude --dry-run`
 3. Verify frontmatter is valid YAML
 

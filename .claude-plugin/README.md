@@ -1,51 +1,46 @@
-# perf-skill for Claude Marketplace
+# perf-skill - Claude Code Plugin
 
-This directory contains the Claude Marketplace plugin configuration for perf-skill.
+This directory contains the Claude Code plugin configuration for perf-skill.
 
-## Files
+## Plugin Structure
 
-- `plugin.json` - Main plugin manifest defining skills, installation, and compatibility
-- `marketplace.json` - Marketplace listing metadata (description, category, triggers)
-
-## Publishing to Claude Marketplace
-
-### Prerequisites
-
-1. Ensure the npm package is published: `npm publish`
-2. Verify the SKILL.md is included in the npm package
-3. Test the installation: `npx perf-skill init --ai claude`
-
-### Submission
-
-1. Visit [Claude Marketplace Developer Portal](https://claude.ai/marketplace/developer)
-2. Submit this repository for review
-3. The marketplace will validate:
-   - Plugin manifest schema
-   - Installation process
-   - Skill file structure
-   - Documentation quality
-
-### Local Testing
-
-```bash
-# Install locally for testing
-npx perf-skill init --ai claude --scope project
-
-# Verify skill installation
-cat .claude/skills/perf-skill/SKILL.md
+```
+perf-skill/
+  .claude-plugin/
+    plugin.json          # Plugin manifest (metadata only)
+    README.md            # This file
+  skills/
+    perf-skill/
+      SKILL.md           # Skill definition (discovered by Claude Code)
 ```
 
-## Trigger Configuration
+Claude Code discovers skills via the `skills/` directory convention. The `plugin.json` provides metadata; skill contents are found automatically.
 
-The `marketplace.json` defines when Claude should suggest this skill:
+## Installation via Marketplace
 
-- **File patterns**: `*.pb.gz`, `*.pprof`
-- **Keywords**: profile, pprof, cpu, heap, memory, performance, slow, bottleneck
-- **Intents**: "analyze profile", "why is my app slow", "compare performance"
+Users install this plugin in two steps:
+
+```text
+# 1. Add the marketplace (this repo)
+/plugin marketplace add skillsland/perf-skill
+
+# 2. Install the plugin from the marketplace
+/plugin install perf-skill@skillsland-perf
+```
+
+## Alternative: CLI Installation (project-level)
+
+For project-level installation (commits skill to repo):
+
+```bash
+npx perf-skill init --ai claude
+```
+
+This copies the skill to `.claude/skills/perf-skill/SKILL.md` in the current project.
 
 ## Version Sync
 
-Keep `version` in `plugin.json` synchronized with `package.json` version.
+Keep `version` in `plugin.json` synchronized with `package.json`.
 
 ## Support
 
